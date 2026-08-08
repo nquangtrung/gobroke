@@ -3,7 +3,6 @@ package main
 import (
 	"log"
 	"sync"
-	"time"
 
 	"trontria.com/gobroke"
 )
@@ -12,7 +11,6 @@ func main() {
 	broker := gobroke.NewBroker()
 	defer func() {
 		// Allow time for all messages to be processed before stopping
-		time.Sleep(time.Second * 1)
 		broker.Stop()
 	}()
 
