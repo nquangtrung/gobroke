@@ -24,7 +24,7 @@ type SubscriberImpl struct {
 
 	name string
 
-	receivechannel chan any
+	receiveChannel chan any
 	stopChannel    chan bool
 	mu             sync.Mutex
 }
@@ -48,7 +48,7 @@ func (s *SubscriberImpl) Unsubscribe() {
 }
 
 func (s *SubscriberImpl) Receive() chan any {
-	return s.receivechannel
+	return s.receiveChannel
 }
 
 func (s *SubscriberImpl) Start(ctx context.Context) {
@@ -58,7 +58,7 @@ func (s *SubscriberImpl) Start(ctx context.Context) {
 		return
 	}
 
-	s.receivechannel = make(chan any, 10)
+	s.receiveChannel = make(chan any, resolveBufferSize(s.broker.GetTopic(s.topic).GetParams()))
 	s.stopChannel = make(chan bool)
 
 	go func() {
@@ -73,7 +73,7 @@ func (s *SubscriberImpl) Start(ctx context.Context) {
 			case <-ctx.Done():
 				log.Printf("[%s] [%s] subscriber context done, start graceful shutdown", s.topic, s.name)
 				s.Stop()
-			case data := <-s.receivechannel:
+			case data := <-s.receiveChannel:
 				log.Printf("[%s] [%s] subscriber received data: %v", s.topic, s.name, data)
 				s.handler(data)
 				log.Printf("[%s] [%s] subscriber processed data: %v", s.topic, s.name, data)
@@ -93,10 +93,10 @@ func (s *SubscriberImpl) Stop() {
 	s.stopChannel <- true
 
 	close(s.stopChannel)
-	close(s.receivechannel)
+	close(s.receiveChannel)
 
 	s.stopChannel = nil
-	s.receivechannel = nil
+	s.receiveChannel = nil
 
 	log.Printf("[%s] [%s] subscriber stopped", s.topic, s.Name())
 }

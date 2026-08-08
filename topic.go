@@ -23,6 +23,8 @@ type Topic interface {
 	Subscribe(handler func(data any)) Subscriber
 	NamedSubscribe(name string, handler func(data any)) Subscriber
 	Unsubscribe(subscriber Subscriber)
+
+	GetParams() TopicSetupParams
 }
 
 type TopicSetupParams struct {
@@ -39,12 +41,17 @@ type TopicImpl struct {
 
 	bufferSize   int
 	fullStrategy SubscriberFullStrategy
+	params       TopicSetupParams
 
 	receiveChannel chan any
 	stopChannel    chan bool
 	mu             sync.Mutex
 	ctx            context.Context
 	cancel         context.CancelFunc
+}
+
+func (t *TopicImpl) GetParams() TopicSetupParams {
+	return t.params
 }
 
 func (t *TopicImpl) Start(ctx context.Context) {
@@ -75,6 +82,7 @@ func (t *TopicImpl) Start(ctx context.Context) {
 				subs := t.subscribers.all
 
 				for _, subscriber := range subs {
+					log.Printf("[%s] -> [%s]: channel len: %d channel cap %d", t.name, subscriber.Name(), len(subscriber.Receive()), cap(subscriber.Receive()))
 					select {
 					case subscriber.Receive() <- data:
 						log.Printf("[%s] -> [%s]: %v", t.name, subscriber.Name(), data)
@@ -154,18 +162,20 @@ func (t *TopicImpl) CreatePublisher(b Broker) Publisher {
 }
 
 func (t *TopicImpl) Unsubscribe(subscriber Subscriber) {
-	log.Printf("[%s] [%s] unsubscribe requested\n", t.name, subscriber.Name())
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	log.Printf("[%s] [%s] unsubscribe requested, before: {%d}\n", t.name, subscriber.Name(), len(t.subscribers.all))
+	defer log.Printf("[%s] [%s] unsubscribe finished, after: {%d}\n", t.name, subscriber.Name(), len(t.subscribers.all))
 
 	for i, s := range t.subscribers.all {
 		if s.Name() == subscriber.Name() {
-			s.Stop()
 			t.subscribers.all = append(t.subscribers.all[:i], t.subscribers.all[i+1:]...)
+			s.Stop()
 			log.Printf("[%s] [%s] unsubscribed\n", t.name, s.Name())
 			return
 		}
 	}
+
 }
 
 type Topics struct {
@@ -195,5 +205,6 @@ func newTopic(b Broker, params TopicSetupParams) Topic {
 
 		fullStrategy: fullStrategy,
 		bufferSize:   bufferSize,
+		params:       params,
 	}
 }

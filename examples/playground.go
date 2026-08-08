@@ -40,8 +40,8 @@ func main() {
 
 	received3 := []string{}
 	broker.NamedSubscribe(topic, "s-hang", func(data any) {
-		// hang for 2 seconds, the buffered should be full
-		time.Sleep(time.Microsecond * 1500)
+		log.Println("[s-hang] before hanging, received", data)
+		time.Sleep(time.Millisecond * 1000)
 		log.Println("[s-hang] finished hanging, received", data)
 		received3 = append(received3, data.(string))
 	})
