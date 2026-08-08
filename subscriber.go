@@ -65,6 +65,7 @@ func (s *SubscriberImpl) Start(ctx context.Context) {
 		s.mu.Unlock()
 		log.Printf("[%s] [%s] subscriber started", s.topic, s.name)
 		for {
+			log.Printf("[%s] [%s] waiting for data", s.topic, s.name)
 			select {
 			case <-s.stopChannel:
 				log.Printf("[%s] [%s] subscriber stopped", s.topic, s.name)
@@ -75,6 +76,7 @@ func (s *SubscriberImpl) Start(ctx context.Context) {
 			case data := <-s.receivechannel:
 				log.Printf("[%s] [%s] subscriber received data: %v", s.topic, s.name, data)
 				s.handler(data)
+				log.Printf("[%s] [%s] subscriber processed data: %v", s.topic, s.name, data)
 			}
 		}
 	}()

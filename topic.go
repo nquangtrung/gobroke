@@ -25,11 +25,20 @@ type Topic interface {
 	Unsubscribe(subscriber Subscriber)
 }
 
+type TopicSetupParams struct {
+	Name                   string
+	SubscriberFullStrategy SubscriberFullStrategyType
+	BufferSize             int
+}
+
 type TopicImpl struct {
 	name        string
 	subscribers *Subscribers
 	publishers  *Publishers
 	broker      Broker
+
+	bufferSize   int
+	fullStrategy SubscriberFullStrategy
 
 	receiveChannel chan any
 	stopChannel    chan bool
@@ -53,7 +62,6 @@ func (t *TopicImpl) Start(ctx context.Context) {
 
 		log.Printf("[%s] topic started", t.name)
 		for {
-			log.Printf("[%s] awaiting published data, ctx.Done(), or stopChannel signal", t.name)
 			select {
 			case <-t.stopChannel:
 				log.Printf("[%s] topic stopped", t.name)
@@ -74,12 +82,12 @@ func (t *TopicImpl) Start(ctx context.Context) {
 					default:
 						// subscriber channel is full, discard the current data
 						log.Printf("[%s] -> [%s] subscriber channel is full, discarding data: %v", t.name, subscriber.Name(), data)
+						t.fullStrategy.HandleFull(subscriber, data)
 						continue
 					}
 				}
 				t.subscribers.mu.Unlock()
 			}
-
 		}
 	}()
 }
@@ -165,12 +173,27 @@ type Topics struct {
 	mu  sync.Mutex
 }
 
-func NewTopic(topicName string, b Broker) Topic {
+func resolveBufferSize(params TopicSetupParams) int {
+	if params.BufferSize == 0 {
+		return 10
+	}
+	return params.BufferSize
+}
+
+func newTopic(b Broker, params TopicSetupParams) Topic {
+	fullStrategy := newSubscriberFullStrategy(params.SubscriberFullStrategy)
+	bufferSize := resolveBufferSize(params)
+
 	return &TopicImpl{
-		name:           topicName,
-		subscribers:    &Subscribers{},
-		publishers:     &Publishers{},
+		name: params.Name,
+
+		subscribers: &Subscribers{},
+		publishers:  &Publishers{},
+
 		broker:         b,
-		receiveChannel: make(chan any),
+		receiveChannel: make(chan any, bufferSize),
+
+		fullStrategy: fullStrategy,
+		bufferSize:   bufferSize,
 	}
 }

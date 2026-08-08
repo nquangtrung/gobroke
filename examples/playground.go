@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -15,13 +16,18 @@ func main() {
 	}()
 
 	topic := "fruits"
-	broker.SetupTopic(topic)
+	broker.SetupTopic(gobroke.TopicSetupParams{
+		Name:                   topic,
+		SubscriberFullStrategy: gobroke.DropOldest,
+		BufferSize:             3,
+	})
 
 	received1 := []string{}
 	broker.NamedSubscribe(topic, "s1", func(data any) {
 		received1 = append(received1, data.(string))
 		log.Printf("[s1] received %v", data)
 	})
+
 	received2 := []string{}
 	var subscriber2 gobroke.Subscriber
 	subscriber2 = broker.NamedSubscribe(topic, "s2", func(data any) {
@@ -32,6 +38,13 @@ func main() {
 		}
 	})
 
+	received3 := []string{}
+	broker.NamedSubscribe(topic, "s-hang", func(data any) {
+		// hang for 2 seconds, the buffered should be full
+		time.Sleep(time.Microsecond * 1500)
+		log.Println("[s-hang] finished hanging, received", data)
+		received3 = append(received3, data.(string))
+	})
 	time.Sleep(time.Millisecond * 100)
 
 	var wg sync.WaitGroup
@@ -51,16 +64,18 @@ func main() {
 	log.Println("Published all available fruits")
 	log.Printf("[received1] %v", received1)
 	log.Printf("[received2] %v", received2)
+	log.Printf("[received3] %v", received3)
 }
 
-func looper(broker gobroke.Broker, topic string, wg *sync.WaitGroup, value any) {
+func looper(broker gobroke.Broker, topic string, wg *sync.WaitGroup, value string) {
 	publisher := broker.CreatePublisher(topic)
 
 	go func() {
-		for i := range 3 {
-			log.Printf("[%s] publishing #%d", value, i)
-			publisher.Publish(value)
-			time.Sleep(time.Second)
+		for i := range 20 {
+			valueToPublish := fmt.Sprintf("%s-%d", value, i)
+			log.Printf("[%s] publishing %s", value, valueToPublish)
+			publisher.Publish(valueToPublish)
+			time.Sleep(time.Millisecond * 500)
 		}
 		wg.Done()
 	}()

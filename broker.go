@@ -16,7 +16,7 @@ type Broker interface {
 
 	GetTopic(topic string) Topic
 
-	SetupTopic(topic string) Topic
+	SetupTopic(params TopicSetupParams) Topic
 }
 
 type BrokerImpl struct {
@@ -60,13 +60,15 @@ func (b *BrokerImpl) GetTopic(topicName string) Topic {
 	return b.topics.all[topicName]
 }
 
-func (b *BrokerImpl) SetupTopic(topicName string) Topic {
+func (b *BrokerImpl) SetupTopic(params TopicSetupParams) Topic {
 	b.topics.mu.Lock()
 	defer b.topics.mu.Unlock()
 
+	topicName := params.Name
+
 	topic := b.topics.all[topicName]
 	if topic == nil {
-		topic = NewTopic(topicName, b)
+		topic = newTopic(b, params)
 		b.topics.all[topicName] = topic
 	}
 	topic.Start(b.ctx)
