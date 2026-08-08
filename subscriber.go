@@ -11,6 +11,8 @@ type Subscriber interface {
 	Unsubscribe()
 	Receive() chan any
 
+	Name() string
+
 	Start(ctx context.Context)
 	Stop()
 }
@@ -19,6 +21,8 @@ type SubscriberImpl struct {
 	topic   string
 	handler func(data any)
 	broker  Broker
+
+	name string
 
 	receivechannel chan any
 	stopChannel    chan bool
@@ -34,6 +38,10 @@ func (s *SubscriberImpl) Topic() Topic {
 	return s.broker.GetTopic(s.topic)
 }
 
+func (s *SubscriberImpl) Name() string {
+	return s.name
+}
+
 func (s *SubscriberImpl) Unsubscribe() {
 	topic := s.Topic()
 	topic.Unsubscribe(s)
@@ -45,7 +53,6 @@ func (s *SubscriberImpl) Receive() chan any {
 
 func (s *SubscriberImpl) Start(ctx context.Context) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	if s.stopChannel != nil {
 		return
@@ -55,20 +62,19 @@ func (s *SubscriberImpl) Start(ctx context.Context) {
 	s.stopChannel = make(chan bool)
 
 	go func() {
-		log.Printf("[%s] subscriber started", s.topic)
+		s.mu.Unlock()
+		log.Printf("[%s] [%s] subscriber started", s.topic, s.name)
 		for {
 			select {
 			case <-s.stopChannel:
-				log.Printf("[%s] subscriber stopped", s.topic)
+				log.Printf("[%s] [%s] subscriber stopped", s.topic, s.name)
 				return
 			case <-ctx.Done():
-				log.Printf("[%s] subscriber context done, start graceful shutdown", s.topic)
+				log.Printf("[%s] [%s] subscriber context done, start graceful shutdown", s.topic, s.name)
 				s.Stop()
 			case data := <-s.receivechannel:
-				log.Printf("[%s] subscriber received data: %v", s.topic, data)
+				log.Printf("[%s] [%s] subscriber received data: %v", s.topic, s.name, data)
 				s.handler(data)
-			default:
-				continue
 			}
 		}
 	}()
@@ -83,8 +89,12 @@ func (s *SubscriberImpl) Stop() {
 	}
 
 	s.stopChannel <- true
-	defer close(s.stopChannel)
-	defer close(s.receivechannel)
 
-	log.Printf("[%s] subscriber stopped", s.topic)
+	close(s.stopChannel)
+	close(s.receivechannel)
+
+	s.stopChannel = nil
+	s.receivechannel = nil
+
+	log.Printf("[%s] [%s] subscriber stopped", s.topic, s.Name())
 }

@@ -10,12 +10,13 @@ type Broker interface {
 	Stop()
 
 	Subscribe(topic string, handler func(data any)) Subscriber
+	NamedSubscribe(topic string, name string, handler func(data any)) Subscriber
 	CreatePublisher(topic string) Publisher
 	Publish(topic string, data any)
 
 	GetTopic(topic string) Topic
 
-	ensureTopic(topic string) Topic
+	SetupTopic(topic string) Topic
 }
 
 type BrokerImpl struct {
@@ -44,18 +45,22 @@ func (b *BrokerImpl) Stop() {
 }
 
 func (b *BrokerImpl) Publish(topicName string, data any) {
-	topic := b.ensureTopic(topicName)
+	b.topics.mu.Lock()
+	defer b.topics.mu.Unlock()
+
+	topic := b.GetTopic(topicName)
+	if topic == nil {
+		panic("topic " + topicName + " not found")
+	}
+
 	topic.Publish(data)
 }
 
 func (b *BrokerImpl) GetTopic(topicName string) Topic {
-	b.topics.mu.Lock()
-	defer b.topics.mu.Unlock()
-
 	return b.topics.all[topicName]
 }
 
-func (b *BrokerImpl) ensureTopic(topicName string) Topic {
+func (b *BrokerImpl) SetupTopic(topicName string) Topic {
 	b.topics.mu.Lock()
 	defer b.topics.mu.Unlock()
 
@@ -70,8 +75,27 @@ func (b *BrokerImpl) ensureTopic(topicName string) Topic {
 }
 
 func (b *BrokerImpl) Subscribe(topicName string, handler func(data any)) Subscriber {
-	topic := b.ensureTopic(topicName)
+	b.topics.mu.Lock()
+	defer b.topics.mu.Unlock()
+
+	topic := b.GetTopic(topicName)
+	if topic == nil {
+		panic("topic " + topicName + " not found")
+	}
 	subscriber := topic.Subscribe(handler)
+
+	return subscriber
+}
+
+func (b *BrokerImpl) NamedSubscribe(topicName string, name string, handler func(data any)) Subscriber {
+	b.topics.mu.Lock()
+	defer b.topics.mu.Unlock()
+
+	topic := b.GetTopic(topicName)
+	if topic == nil {
+		panic("topic " + topicName + " not found")
+	}
+	subscriber := topic.NamedSubscribe(name, handler)
 
 	return subscriber
 }
@@ -81,7 +105,13 @@ func (b *BrokerImpl) Unsubscribe(subscriber Subscriber) {
 }
 
 func (b *BrokerImpl) CreatePublisher(topicName string) Publisher {
-	topic := b.ensureTopic(topicName)
+	b.topics.mu.Lock()
+	defer b.topics.mu.Unlock()
+
+	topic := b.GetTopic(topicName)
+	if topic == nil {
+		panic("topic " + topicName + " not found")
+	}
 	publisher := topic.CreatePublisher(b)
 
 	return publisher
