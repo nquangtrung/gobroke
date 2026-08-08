@@ -19,7 +19,7 @@ func main() {
 	broker.SetupTopic(gobroke.TopicSetupParams{
 		Name:                   topic,
 		SubscriberFullStrategy: gobroke.DropOldest,
-		BufferSize:             3,
+		BufferSize:             10,
 	})
 
 	received1 := []string{}

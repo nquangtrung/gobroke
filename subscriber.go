@@ -73,9 +73,7 @@ func (s *SubscriberImpl) Start(ctx context.Context) {
 				log.Printf("[%s] [%s] subscriber context done, start graceful shutdown", s.topic, s.name)
 				s.Stop()
 			case data := <-s.receiveChannel:
-				log.Printf("[%s] [%s] subscriber received data: %v", s.topic, s.name, data)
 				s.handler(data)
-				log.Printf("[%s] [%s] subscriber processed data: %v", s.topic, s.name, data)
 			}
 		}
 	}()
