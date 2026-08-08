@@ -178,11 +178,6 @@ func (t *TopicImpl) Unsubscribe(subscriber Subscriber) {
 
 }
 
-type Topics struct {
-	all map[string]Topic
-	mu  sync.Mutex
-}
-
 func resolveBufferSize(params TopicSetupParams) int {
 	if params.BufferSize == 0 {
 		return 10

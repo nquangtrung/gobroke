@@ -20,7 +20,9 @@ type Broker interface {
 }
 
 type BrokerImpl struct {
-	topics *Topics
+	topics map[string]Topic
+	mu     sync.Mutex
+
 	ctx    context.Context
 	cancel context.CancelFunc
 }
@@ -28,15 +30,11 @@ type BrokerImpl struct {
 func (b *BrokerImpl) Start() {
 	var once sync.Once
 	once.Do(func() {
-		b.topics = &Topics{
-			all: make(map[string]Topic),
-		}
+		b.mu.Lock()
+		defer b.mu.Unlock()
 
+		b.topics = make(map[string]Topic)
 		b.ctx, b.cancel = context.WithCancel(context.Background())
-		b.topics.mu.Lock()
-		defer b.topics.mu.Unlock()
-
-		b.topics.all = make(map[string]Topic)
 	})
 }
 
@@ -45,8 +43,8 @@ func (b *BrokerImpl) Stop() {
 }
 
 func (b *BrokerImpl) Publish(topicName string, data any) {
-	b.topics.mu.Lock()
-	defer b.topics.mu.Unlock()
+	b.mu.Lock()
+	defer b.mu.Unlock()
 
 	topic := b.GetTopic(topicName)
 	if topic == nil {
@@ -57,28 +55,28 @@ func (b *BrokerImpl) Publish(topicName string, data any) {
 }
 
 func (b *BrokerImpl) GetTopic(topicName string) Topic {
-	return b.topics.all[topicName]
+	return b.topics[topicName]
 }
 
 func (b *BrokerImpl) SetupTopic(params TopicSetupParams) Topic {
-	b.topics.mu.Lock()
-	defer b.topics.mu.Unlock()
+	b.mu.Lock()
+	defer b.mu.Unlock()
 
 	topicName := params.Name
 
-	topic := b.topics.all[topicName]
+	topic := b.topics[topicName]
 	if topic == nil {
 		topic = newTopic(b, params)
-		b.topics.all[topicName] = topic
+		b.topics[topicName] = topic
 	}
 	topic.Start(b.ctx)
 
-	return b.topics.all[topicName]
+	return b.topics[topicName]
 }
 
 func (b *BrokerImpl) Subscribe(topicName string, handler func(data any)) Subscriber {
-	b.topics.mu.Lock()
-	defer b.topics.mu.Unlock()
+	b.mu.Lock()
+	defer b.mu.Unlock()
 
 	topic := b.GetTopic(topicName)
 	if topic == nil {
@@ -90,8 +88,8 @@ func (b *BrokerImpl) Subscribe(topicName string, handler func(data any)) Subscri
 }
 
 func (b *BrokerImpl) NamedSubscribe(topicName string, name string, handler func(data any)) Subscriber {
-	b.topics.mu.Lock()
-	defer b.topics.mu.Unlock()
+	b.mu.Lock()
+	defer b.mu.Unlock()
 
 	topic := b.GetTopic(topicName)
 	if topic == nil {
@@ -107,8 +105,8 @@ func (b *BrokerImpl) Unsubscribe(subscriber Subscriber) {
 }
 
 func (b *BrokerImpl) CreatePublisher(topicName string) Publisher {
-	b.topics.mu.Lock()
-	defer b.topics.mu.Unlock()
+	b.mu.Lock()
+	defer b.mu.Unlock()
 
 	topic := b.GetTopic(topicName)
 	if topic == nil {
