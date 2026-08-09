@@ -9,13 +9,13 @@ const (
 	DropNewest
 )
 
-type FullStrategy interface {
-	HandleFull(strategy Strategy, data any)
+type DropStrategy interface {
+	Drop(strategy Strategy, data any)
 }
 
 type DropOldestStrategy struct{}
 
-func (s *DropOldestStrategy) HandleFull(strategy Strategy, data any) {
+func (s *DropOldestStrategy) Drop(strategy Strategy, data any) {
 	// drop the oldest data
 	discarded := <-strategy.Consume()
 	log.Printf("discarded %v", discarded)
@@ -25,13 +25,13 @@ func (s *DropOldestStrategy) HandleFull(strategy Strategy, data any) {
 
 type DropNewestStrategy struct{}
 
-func (s *DropNewestStrategy) HandleFull(strategy Strategy, data any) {
+func (s *DropNewestStrategy) Drop(strategy Strategy, data any) {
 	// drop the newest data, leaving the subscriber channel full
 	// simply discard the data
 	// no-op
 }
 
-func newFullStrategy(strategyType SubscriberFullStrategyType) FullStrategy {
+func newFullStrategy(strategyType SubscriberFullStrategyType) DropStrategy {
 	switch strategyType {
 	case DropOldest:
 		return &DropOldestStrategy{}

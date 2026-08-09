@@ -17,18 +17,18 @@ type Strategy interface {
 	Consume() chan any
 	Stop()
 
-	GetFullStrategy() FullStrategy
+	GetFullStrategy() DropStrategy
 	GetWorkerStrategy() WorkerStrategy
 
-	WithFullStrategy(strategyType SubscriberFullStrategyType) Strategy
+	WithDrop(strategyType SubscriberFullStrategyType) Strategy
 
-	WithSimpleWorkerStrategy() Strategy
-	WithMutipleWorkerStrategy(maxWorker int) Strategy
+	WithSimpleWorker() Strategy
+	WithMutipleWorker(maxWorker int) Strategy
 }
 
 type SingleBufferedConsumerStrategy struct {
 	channel chan any
-	full    FullStrategy
+	full    DropStrategy
 	worker  WorkerStrategy
 }
 
@@ -37,7 +37,7 @@ func (s SingleBufferedConsumerStrategy) Receive(data any) {
 	case s.channel <- data:
 		return
 	default:
-		s.full.HandleFull(s, data)
+		s.full.Drop(s, data)
 	}
 }
 
@@ -49,22 +49,22 @@ func (s SingleBufferedConsumerStrategy) GetWorkerStrategy() WorkerStrategy {
 	return s.worker
 }
 
-func (s SingleBufferedConsumerStrategy) GetFullStrategy() FullStrategy {
+func (s SingleBufferedConsumerStrategy) GetFullStrategy() DropStrategy {
 	return s.full
 }
 
-func (s SingleBufferedConsumerStrategy) WithFullStrategy(strategyType SubscriberFullStrategyType) Strategy {
+func (s SingleBufferedConsumerStrategy) WithDrop(strategyType SubscriberFullStrategyType) Strategy {
 	s.full = newFullStrategy(strategyType)
 	return s
 }
 
-func (s SingleBufferedConsumerStrategy) WithSimpleWorkerStrategy() Strategy {
+func (s SingleBufferedConsumerStrategy) WithSimpleWorker() Strategy {
 	builder := WorkerStrategyBuilderImpl{}.Strategy(Simple)
 	s.worker = builder.Build()
 	return s
 }
 
-func (s SingleBufferedConsumerStrategy) WithMutipleWorkerStrategy(maxWorker int) Strategy {
+func (s SingleBufferedConsumerStrategy) WithMutipleWorker(maxWorker int) Strategy {
 	builder := WorkerStrategyBuilderImpl{}.Strategy(MultipleWorker).MaxRoutine(maxWorker)
 	s.worker = builder.Build()
 	return s
@@ -85,10 +85,10 @@ func NewStrategy(strategyType SubscriberStrategyType, bufferSize ...int) Strateg
 	case SingleBuffered:
 		return SingleBufferedConsumerStrategy{
 			channel: channel,
-		}.WithFullStrategy(DropNewest).WithSimpleWorkerStrategy()
+		}.WithDrop(DropNewest).WithSimpleWorker()
 	default:
 		return SingleBufferedConsumerStrategy{
 			channel: channel,
-		}.WithFullStrategy(DropNewest).WithSimpleWorkerStrategy()
+		}.WithDrop(DropNewest).WithSimpleWorker()
 	}
 }

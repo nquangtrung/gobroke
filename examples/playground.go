@@ -48,7 +48,7 @@ func main() {
 			log.Println("[s-hang-oldest] finished hanging, received", data)
 			received3 = append(received3, data.(string))
 		},
-		Strategy: gobroke.NewStrategy(gobroke.SingleBuffered, 4).WithFullStrategy(gobroke.DropOldest).WithMutipleWorkerStrategy(3),
+		Strategy: gobroke.NewStrategy(gobroke.SingleBuffered).WithDrop(gobroke.DropOldest).WithMutipleWorker(3),
 	})
 
 	received4 := []string{}
@@ -89,7 +89,7 @@ func looper(broker gobroke.Broker, topic string, wg *sync.WaitGroup, value strin
 	publisher := broker.CreatePublisher(topic)
 
 	go func() {
-		for i := range 10 {
+		for i := range 25 {
 			valueToPublish := fmt.Sprintf("%s-%d", value, i)
 			log.Printf("[%s] publishing %s", value, valueToPublish)
 			publisher.Publish(valueToPublish)
