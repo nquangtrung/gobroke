@@ -28,7 +28,7 @@ type SubscriberImpl struct {
 	stopChannel chan bool
 	mu          sync.Mutex
 
-	strategy SubscriberStrategy
+	strategy Strategy
 }
 
 type Subscribers struct {
@@ -75,7 +75,7 @@ func (s *SubscriberImpl) Start(ctx context.Context) {
 				s.Stop()
 			case data := <-s.strategy.Consume():
 				log.Printf("[%s] [%s] received data (%s)", s.topic, s.name, data)
-				s.handler(data)
+				s.strategy.GetWorkerStrategy().Execute(s.handler, data)
 			}
 		}
 	}()

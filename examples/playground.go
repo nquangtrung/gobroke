@@ -48,7 +48,7 @@ func main() {
 			log.Println("[s-hang-oldest] finished hanging, received", data)
 			received3 = append(received3, data.(string))
 		},
-		Strategy: gobroke.NewSubscriberStrategy(gobroke.SingleBuffered, 4).WithFullStrategy(gobroke.DropOldest),
+		Strategy: gobroke.NewStrategy(gobroke.SingleBuffered, 4).WithFullStrategy(gobroke.DropOldest).WithMutipleWorkerStrategy(3),
 	})
 
 	received4 := []string{}
@@ -59,8 +59,9 @@ func main() {
 			log.Println("[s-hang-newest] finished hanging, received", data)
 			received4 = append(received4, data.(string))
 		},
-		Strategy: gobroke.NewSubscriberStrategy(gobroke.SingleBuffered, 4),
+		Strategy: gobroke.NewStrategy(gobroke.SingleBuffered, 4),
 	})
+
 	time.Sleep(time.Millisecond * 100)
 
 	var wg sync.WaitGroup

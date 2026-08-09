@@ -119,12 +119,12 @@ func (t *TopicImpl) Subscribe(params SubscribeParams) Subscriber {
 	return t.NamedSubscribe(rand.Text(), params)
 }
 
-func resolveSubscriberStrategy(params SubscribeParams) SubscriberStrategy {
+func resolveSubscriberStrategy(params SubscribeParams) Strategy {
 	if params.Strategy != nil {
 		return params.Strategy
 	}
 
-	return NewSubscriberStrategy(SingleBuffered)
+	return NewStrategy(SingleBuffered)
 }
 
 func (t *TopicImpl) NamedSubscribe(name string, params SubscribeParams) Subscriber {
