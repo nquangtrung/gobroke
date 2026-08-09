@@ -9,8 +9,8 @@ type Broker interface {
 	Start()
 	Stop()
 
-	Subscribe(topic string, handler func(data any)) Subscriber
-	NamedSubscribe(topic string, name string, handler func(data any)) Subscriber
+	Subscribe(topic string, params SubscribeParams) Subscriber
+	NamedSubscribe(topic string, name string, params SubscribeParams) Subscriber
 	CreatePublisher(topic string) Publisher
 	Publish(topic string, data any)
 
@@ -74,7 +74,7 @@ func (b *BrokerImpl) SetupTopic(params TopicSetupParams) Topic {
 	return b.topics[topicName]
 }
 
-func (b *BrokerImpl) Subscribe(topicName string, handler func(data any)) Subscriber {
+func (b *BrokerImpl) Subscribe(topicName string, params SubscribeParams) Subscriber {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -82,12 +82,12 @@ func (b *BrokerImpl) Subscribe(topicName string, handler func(data any)) Subscri
 	if topic == nil {
 		panic("topic " + topicName + " not found")
 	}
-	subscriber := topic.Subscribe(handler)
+	subscriber := topic.Subscribe(params)
 
 	return subscriber
 }
 
-func (b *BrokerImpl) NamedSubscribe(topicName string, name string, handler func(data any)) Subscriber {
+func (b *BrokerImpl) NamedSubscribe(topicName string, name string, params SubscribeParams) Subscriber {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -95,7 +95,7 @@ func (b *BrokerImpl) NamedSubscribe(topicName string, name string, handler func(
 	if topic == nil {
 		panic("topic " + topicName + " not found")
 	}
-	subscriber := topic.NamedSubscribe(name, handler)
+	subscriber := topic.NamedSubscribe(name, params)
 
 	return subscriber
 }

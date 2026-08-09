@@ -9,12 +9,13 @@ import (
 type Subscriber interface {
 	TopicChild
 	Unsubscribe()
-	Receive() chan any
 
 	Name() string
 
 	Start(ctx context.Context)
 	Stop()
+
+	Receive(data any)
 }
 
 type SubscriberImpl struct {
@@ -24,14 +25,19 @@ type SubscriberImpl struct {
 
 	name string
 
-	receiveChannel chan any
-	stopChannel    chan bool
-	mu             sync.Mutex
+	stopChannel chan bool
+	mu          sync.Mutex
+
+	strategy SubscriberStrategy
 }
 
 type Subscribers struct {
 	all []Subscriber
 	mu  sync.Mutex
+}
+
+func (s *SubscriberImpl) Receive(data any) {
+	s.strategy.Receive(data)
 }
 
 func (s *SubscriberImpl) Topic() Topic {
@@ -47,10 +53,6 @@ func (s *SubscriberImpl) Unsubscribe() {
 	topic.Unsubscribe(s)
 }
 
-func (s *SubscriberImpl) Receive() chan any {
-	return s.receiveChannel
-}
-
 func (s *SubscriberImpl) Start(ctx context.Context) {
 	s.mu.Lock()
 
@@ -58,7 +60,6 @@ func (s *SubscriberImpl) Start(ctx context.Context) {
 		return
 	}
 
-	s.receiveChannel = make(chan any, resolveBufferSize(s.broker.GetTopic(s.topic).GetParams()))
 	s.stopChannel = make(chan bool)
 
 	go func() {
@@ -72,7 +73,7 @@ func (s *SubscriberImpl) Start(ctx context.Context) {
 			case <-ctx.Done():
 				log.Printf("[%s] [%s] subscriber context done, start graceful shutdown", s.topic, s.name)
 				s.Stop()
-			case data := <-s.receiveChannel:
+			case data := <-s.strategy.Consume():
 				s.handler(data)
 			}
 		}
@@ -88,12 +89,10 @@ func (s *SubscriberImpl) Stop() {
 	}
 
 	s.stopChannel <- true
-
 	close(s.stopChannel)
-	close(s.receiveChannel)
-
 	s.stopChannel = nil
-	s.receiveChannel = nil
+
+	s.strategy.Stop()
 
 	log.Printf("[%s] [%s] subscriber stopped", s.topic, s.Name())
 }

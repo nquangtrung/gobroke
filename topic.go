@@ -20,17 +20,16 @@ type Topic interface {
 	Publish(data any)
 	CreatePublisher(b Broker) Publisher
 
-	Subscribe(handler func(data any)) Subscriber
-	NamedSubscribe(name string, handler func(data any)) Subscriber
+	Subscribe(params SubscribeParams) Subscriber
+	NamedSubscribe(name string, params SubscribeParams) Subscriber
 	Unsubscribe(subscriber Subscriber)
 
 	GetParams() TopicSetupParams
 }
 
 type TopicSetupParams struct {
-	Name                   string
-	SubscriberFullStrategy SubscriberFullStrategyType
-	BufferSize             int
+	Name       string
+	BufferSize int
 }
 
 type TopicImpl struct {
@@ -39,9 +38,8 @@ type TopicImpl struct {
 	publishers  *Publishers
 	broker      Broker
 
-	bufferSize   int
-	fullStrategy SubscriberFullStrategy
-	params       TopicSetupParams
+	bufferSize int
+	params     TopicSetupParams
 
 	receiveChannel chan any
 	stopChannel    chan bool
@@ -82,17 +80,7 @@ func (t *TopicImpl) Start(ctx context.Context) {
 				subs := t.subscribers.all
 
 				for _, subscriber := range subs {
-					log.Printf("[%s] -> [%s]: channel len: %d channel cap %d", t.name, subscriber.Name(), len(subscriber.Receive()), cap(subscriber.Receive()))
-					select {
-					case subscriber.Receive() <- data:
-						log.Printf("[%s] -> [%s]: %v", t.name, subscriber.Name(), data)
-						continue
-					default:
-						// subscriber channel is full, discard the current data
-						log.Printf("[%s] -> [%s] subscriber channel is full, discarding data: %v", t.name, subscriber.Name(), data)
-						t.fullStrategy.HandleFull(subscriber, data)
-						continue
-					}
+					subscriber.Receive(data)
 				}
 				t.subscribers.mu.Unlock()
 			}
@@ -124,19 +112,28 @@ func (t *TopicImpl) Stop() {
 	log.Printf("[%s] topic stopped", t.name)
 }
 
-func (t *TopicImpl) Subscribe(handler func(data any)) Subscriber {
-	return t.NamedSubscribe(rand.Text(), handler)
+func (t *TopicImpl) Subscribe(params SubscribeParams) Subscriber {
+	return t.NamedSubscribe(rand.Text(), params)
 }
 
-func (t *TopicImpl) NamedSubscribe(name string, handler func(data any)) Subscriber {
+func resolveSubscriberStrategy(params SubscribeParams) SubscriberStrategy {
+	if params.Strategy != nil {
+		return params.Strategy
+	}
+
+	return NewSubscriberStrategy(Direct)
+}
+
+func (t *TopicImpl) NamedSubscribe(name string, params SubscribeParams) Subscriber {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	subscriber := &SubscriberImpl{
-		topic:   t.name,
-		handler: handler,
-		broker:  t.broker,
-		name:    name,
+		topic:    t.name,
+		handler:  params.Handler,
+		broker:   t.broker,
+		name:     name,
+		strategy: resolveSubscriberStrategy(params),
 	}
 	subscriber.Start(t.ctx)
 
@@ -186,7 +183,6 @@ func resolveBufferSize(params TopicSetupParams) int {
 }
 
 func newTopic(b Broker, params TopicSetupParams) Topic {
-	fullStrategy := newSubscriberFullStrategy(params.SubscriberFullStrategy)
 	bufferSize := resolveBufferSize(params)
 
 	return &TopicImpl{
@@ -198,8 +194,7 @@ func newTopic(b Broker, params TopicSetupParams) Topic {
 		broker:         b,
 		receiveChannel: make(chan any, bufferSize),
 
-		fullStrategy: fullStrategy,
-		bufferSize:   bufferSize,
-		params:       params,
+		bufferSize: bufferSize,
+		params:     params,
 	}
 }
