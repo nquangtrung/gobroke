@@ -74,6 +74,7 @@ func (s *SubscriberImpl) Start(ctx context.Context) {
 				log.Printf("[%s] [%s] subscriber context done, start graceful shutdown", s.topic, s.name)
 				s.Stop()
 			case data := <-s.strategy.Consume():
+				log.Printf("[%s] [%s] received data (%s)", s.topic, s.name, data)
 				s.handler(data)
 			}
 		}
@@ -87,7 +88,6 @@ func (s *SubscriberImpl) Stop() {
 	if s.stopChannel == nil {
 		return
 	}
-
 	s.stopChannel <- true
 	close(s.stopChannel)
 	s.stopChannel = nil

@@ -75,14 +75,17 @@ func (t *TopicImpl) Start(ctx context.Context) {
 				log.Printf("[%s] topic context done, start graceful shutdown", t.name)
 				t.Stop()
 			case data := <-t.receiveChannel:
-				log.Printf("[%s] received data: %v", t.name, data)
 				t.subscribers.mu.Lock()
-				defer t.subscribers.mu.Unlock()
+
 				subs := t.subscribers.all
 
+				log.Printf("[%s] received data: %v", t.name, data)
 				for _, subscriber := range subs {
 					subscriber.Receive(data)
 				}
+				// Can not use defer here, defer will wait until the end of the function,
+				// which is after for
+				t.subscribers.mu.Unlock()
 			}
 		}
 	}()

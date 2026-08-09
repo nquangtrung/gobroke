@@ -88,7 +88,7 @@ func looper(broker gobroke.Broker, topic string, wg *sync.WaitGroup, value strin
 	publisher := broker.CreatePublisher(topic)
 
 	go func() {
-		for i := range 20 {
+		for i := range 10 {
 			valueToPublish := fmt.Sprintf("%s-%d", value, i)
 			log.Printf("[%s] publishing %s", value, valueToPublish)
 			publisher.Publish(valueToPublish)
