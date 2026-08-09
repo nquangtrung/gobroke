@@ -12,6 +12,7 @@ import (
 func main() {
 	broker := gobroke.NewBroker()
 	defer func() {
+		// TODO: Handle graceful exit
 		broker.Stop()
 	}()
 
