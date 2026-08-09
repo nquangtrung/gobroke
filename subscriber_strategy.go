@@ -1,5 +1,7 @@
 package gobroke
 
+import "log"
+
 type SubscriberFullStrategyType int
 
 const (
@@ -10,8 +12,8 @@ const (
 type SubscriberStrategyType int
 
 const (
-	Direct SubscriberStrategyType = iota
-	Buffered
+	SingleBuffered SubscriberStrategyType = iota
+	// DoubleBuffered
 )
 
 type SubscribeParams struct {
@@ -26,51 +28,51 @@ type SubscriberStrategy interface {
 	Stop()
 }
 
-type DirectConsumerStrategy struct {
+type SingleBufferedConsumerStrategy struct {
 	channel      chan any
 	fullStrategy SubscriberFullStrategy
 }
 
-func (s DirectConsumerStrategy) Receive(data any) {
+func (s SingleBufferedConsumerStrategy) Receive(data any) {
 	select {
 	case s.channel <- data:
 		return
 	default:
-		s.fullStrategy.HandleFull(data)
+		s.fullStrategy.HandleFull(s, data)
 	}
 }
 
-func (s DirectConsumerStrategy) Consume() chan any {
+func (s SingleBufferedConsumerStrategy) Consume() chan any {
 	return s.channel
 }
 
-func (s DirectConsumerStrategy) WithFullStrategy(strategyType SubscriberFullStrategyType) SubscriberStrategy {
+func (s SingleBufferedConsumerStrategy) WithFullStrategy(strategyType SubscriberFullStrategyType) SubscriberStrategy {
 	s.fullStrategy = newSubscriberFullStrategy(strategyType)
 	return s
 }
 
-func (s DirectConsumerStrategy) Stop() {
+func (s SingleBufferedConsumerStrategy) Stop() {
 	close(s.channel)
 	s.channel = nil
 }
 
 type SubscriberFullStrategy interface {
-	HandleFull(data any)
+	HandleFull(strategy SubscriberStrategy, data any)
 }
 
-// type DropOldestStrategy struct{}
+type DropOldestStrategy struct{}
 
-// func (s *DropOldestStrategy) HandleFull(data any) {
-// 	// drop the oldest data
-// 	discarded := <-subscriber.Receive()
-// 	log.Printf("[%s] discarded %v", subscriber.Name(), discarded)
-// 	// push the new data to the subscriber channel
-// 	subscriber.Receive() <- data
-// }
+func (s *DropOldestStrategy) HandleFull(strategy SubscriberStrategy, data any) {
+	// drop the oldest data
+	discarded := <-strategy.Consume()
+	log.Printf("discarded %v", discarded)
+	// push the new data to the subscriber channel
+	strategy.Consume() <- data
+}
 
 type DropNewestStrategy struct{}
 
-func (s *DropNewestStrategy) HandleFull(data any) {
+func (s *DropNewestStrategy) HandleFull(strategy SubscriberStrategy, data any) {
 	// drop the newest data, leaving the subscriber channel full
 	// simply discard the data
 	// no-op
@@ -79,7 +81,7 @@ func (s *DropNewestStrategy) HandleFull(data any) {
 func newSubscriberFullStrategy(strategyType SubscriberFullStrategyType) SubscriberFullStrategy {
 	switch strategyType {
 	case DropOldest:
-		return &DropNewestStrategy{}
+		return &DropOldestStrategy{}
 	case DropNewest:
 		return &DropNewestStrategy{}
 	default:
@@ -94,12 +96,12 @@ func NewSubscriberStrategy(strategyType SubscriberStrategyType, bufferSize ...in
 	}
 	channel := make(chan any, resolvedBufferSize)
 	switch strategyType {
-	case Direct:
-		return DirectConsumerStrategy{
+	case SingleBuffered:
+		return SingleBufferedConsumerStrategy{
 			channel: channel,
 		}.WithFullStrategy(DropNewest)
 	default:
-		return DirectConsumerStrategy{
+		return SingleBufferedConsumerStrategy{
 			channel: channel,
 		}.WithFullStrategy(DropNewest)
 	}

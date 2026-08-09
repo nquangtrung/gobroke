@@ -121,7 +121,7 @@ func resolveSubscriberStrategy(params SubscribeParams) SubscriberStrategy {
 		return params.Strategy
 	}
 
-	return NewSubscriberStrategy(Direct)
+	return NewSubscriberStrategy(SingleBuffered)
 }
 
 func (t *TopicImpl) NamedSubscribe(name string, params SubscribeParams) Subscriber {

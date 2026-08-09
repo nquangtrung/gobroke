@@ -38,20 +38,29 @@ func main() {
 				subscriber2.Unsubscribe()
 			}
 		},
-		Strategy: gobroke.NewSubscriberStrategy(gobroke.Direct).WithFullStrategy(gobroke.DropOldest),
 	})
 
 	received3 := []string{}
-	broker.NamedSubscribe(topic, "s-hang", gobroke.SubscribeParams{
+	broker.NamedSubscribe(topic, "s-hang-oldest", gobroke.SubscribeParams{
 		Handler: func(data any) {
-			log.Println("[s-hang] before hanging, received", data)
+			log.Println("[s-hang-oldest] before hanging, received", data)
 			time.Sleep(time.Millisecond * 1000)
-			log.Println("[s-hang] finished hanging, received", data)
+			log.Println("[s-hang-oldest] finished hanging, received", data)
 			received3 = append(received3, data.(string))
 		},
-		Strategy: gobroke.NewSubscriberStrategy(gobroke.Direct, 4).WithFullStrategy(gobroke.DropOldest),
+		Strategy: gobroke.NewSubscriberStrategy(gobroke.SingleBuffered, 4).WithFullStrategy(gobroke.DropOldest),
 	})
 
+	received4 := []string{}
+	broker.NamedSubscribe(topic, "s-hang-newest", gobroke.SubscribeParams{
+		Handler: func(data any) {
+			log.Println("[s-hang-newest] before hanging, received", data)
+			time.Sleep(time.Millisecond * 1000)
+			log.Println("[s-hang-newest] finished hanging, received", data)
+			received4 = append(received4, data.(string))
+		},
+		Strategy: gobroke.NewSubscriberStrategy(gobroke.SingleBuffered, 4),
+	})
 	time.Sleep(time.Millisecond * 100)
 
 	var wg sync.WaitGroup
@@ -72,6 +81,7 @@ func main() {
 	log.Printf("[received1] %v", received1)
 	log.Printf("[received2] %v", received2)
 	log.Printf("[received3] %v", received3)
+	log.Printf("[received4] %v", received4)
 }
 
 func looper(broker gobroke.Broker, topic string, wg *sync.WaitGroup, value string) {

@@ -11,6 +11,7 @@ type Broker interface {
 
 	Subscribe(topic string, params SubscribeParams) Subscriber
 	NamedSubscribe(topic string, name string, params SubscribeParams) Subscriber
+
 	CreatePublisher(topic string) Publisher
 	Publish(topic string, data any)
 
