@@ -77,12 +77,12 @@ func (t *TopicImpl) Start(ctx context.Context) {
 			case data := <-t.receiveChannel:
 				log.Printf("[%s] received data: %v", t.name, data)
 				t.subscribers.mu.Lock()
+				defer t.subscribers.mu.Unlock()
 				subs := t.subscribers.all
 
 				for _, subscriber := range subs {
 					subscriber.Receive(data)
 				}
-				t.subscribers.mu.Unlock()
 			}
 		}
 	}()
