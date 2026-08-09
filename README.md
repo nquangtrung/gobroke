@@ -13,6 +13,9 @@ GoBroke is a simple yet powerful message broker that enables publish-subscribe c
 - **Flexible Subscribers** - Subscribe to topics with custom handler functions
 - **Context Support** - Built-in context handling for graceful shutdown
 - **Thread-Safe** - Safe concurrent access to the broker
+- **Drop Strategies** - Control message handling when buffers fill (DropOldest, DropNewest)
+- **Worker Strategies** - Process messages with simple or multiple concurrent workers
+- **Customizable Buffering** - Configure buffer sizes and behavior per subscription
 
 ## Installation
 
@@ -85,29 +88,78 @@ broker.NamedSubscribe("fruits", "subscriber2", gobroke.SubscribeParams{
 
 ### Subscriber Strategies
 
-Handle subscriber slowness with buffering strategies. Drop old messages when buffer is full:
+GoBroke provides flexible strategies to handle subscriber behavior:
+
+#### Drop Strategies
+
+Control what happens when a subscriber's buffer is full:
+
+**Drop Newest (default)** - New incoming messages are discarded:
 
 ```go
-broker.NamedSubscribe("events", "fast-handler", gobroke.SubscribeParams{
+broker.NamedSubscribe("events", "handler1", gobroke.SubscribeParams{
 	Handler: func(data any) {
 		fmt.Println("Received:", data)
 	},
-	Strategy: gobroke.NewSubscriberStrategy(gobroke.SingleBuffered, 4).
-		WithFullStrategy(gobroke.DropOldest),
+	Strategy: gobroke.NewStrategy(gobroke.SingleBuffered, 4).
+		WithDrop(gobroke.DropNewest),
 })
 ```
 
-Drop new messages when buffer is full (default):
+**Drop Oldest** - Oldest buffered messages are discarded to make room for new ones:
 
 ```go
-broker.NamedSubscribe("events", "slow-handler", gobroke.SubscribeParams{
+broker.NamedSubscribe("events", "handler2", gobroke.SubscribeParams{
 	Handler: func(data any) {
-		// Takes time to process
-		time.Sleep(time.Second)
+		fmt.Println("Received:", data)
+	},
+	Strategy: gobroke.NewStrategy(gobroke.SingleBuffered, 4).
+		WithDrop(gobroke.DropOldest),
+})
+```
+
+#### Worker Strategies
+
+Control how messages are processed:
+
+**Simple Worker (default)** - Messages are processed sequentially:
+
+```go
+broker.NamedSubscribe("tasks", "worker1", gobroke.SubscribeParams{
+	Handler: func(data any) {
+		fmt.Println("Processing:", data)
+	},
+	Strategy: gobroke.NewStrategy(gobroke.SingleBuffered, 10).
+		WithSimpleWorker(),
+})
+```
+
+**Multiple Workers** - Process multiple messages concurrently with a limit:
+
+```go
+broker.NamedSubscribe("tasks", "worker2", gobroke.SubscribeParams{
+	Handler: func(data any) {
+		time.Sleep(time.Second) // Simulate work
 		fmt.Println("Processed:", data)
 	},
-	Strategy: gobroke.NewSubscriberStrategy(gobroke.SingleBuffered, 4).
-		WithFullStrategy(gobroke.DropNewest),
+	Strategy: gobroke.NewStrategy(gobroke.SingleBuffered, 10).
+		WithMutipleWorker(3), // Max 3 concurrent workers
+})
+```
+
+#### Combining Strategies
+
+You can combine drop and worker strategies:
+
+```go
+broker.NamedSubscribe("events", "complex-handler", gobroke.SubscribeParams{
+	Handler: func(data any) {
+		time.Sleep(time.Millisecond * 500)
+		fmt.Println("Processed:", data)
+	},
+	Strategy: gobroke.NewStrategy(gobroke.SingleBuffered, 5).
+		WithDrop(gobroke.DropOldest).
+		WithMutipleWorker(2),
 })
 ```
 
@@ -149,6 +201,25 @@ topic := broker.GetTopic("my-topic")
 - `Publish(topic string, data any)` - Publish data to a topic
 - `SetupTopic(params TopicSetupParams)` - Configure a topic
 - `GetTopic(topic string) Topic` - Get a topic
+
+### Strategy Interface
+
+- `Receive(data any)` - Receive a message
+- `Consume() chan any` - Get the message channel
+- `Stop()` - Stop the strategy
+- `WithDrop(strategyType DropStrategyType) Strategy` - Set the drop strategy (DropOldest, DropNewest)
+- `WithSimpleWorker() Strategy` - Use simple sequential worker
+- `WithMutipleWorker(maxWorker int) Strategy` - Use multiple concurrent workers
+
+### Drop Strategies
+
+- `DropNewest` - Discard new messages when buffer is full (default)
+- `DropOldest` - Discard oldest messages to make room for new ones
+
+### Worker Strategies
+
+- `Simple` - Process messages sequentially
+- `MultipleWorker` - Process multiple messages concurrently
 
 ### Subscriber Interface
 
@@ -242,8 +313,41 @@ broker.NamedSubscribe("events", "busy-handler", gobroke.SubscribeParams{
 		time.Sleep(time.Second) // Simulate slow processing
 		fmt.Println("Processed:", data)
 	},
-	Strategy: gobroke.NewSubscriberStrategy(gobroke.SingleBuffered, 4).
-		WithFullStrategy(gobroke.DropOldest),
+	Strategy: gobroke.NewStrategy(gobroke.SingleBuffered, 4).
+		WithDrop(gobroke.DropOldest),
+})
+```
+
+### Concurrent Message Processing
+
+Process messages concurrently with multiple workers:
+
+```go
+broker.NamedSubscribe("batch-jobs", "parallel-worker", gobroke.SubscribeParams{
+	Handler: func(data any) {
+		// Multiple instances of this handler run concurrently
+		log.Printf("Starting job: %v", data)
+		time.Sleep(time.Second * 2) // Simulate work
+		log.Printf("Completed job: %v", data)
+	},
+	Strategy: gobroke.NewStrategy(gobroke.SingleBuffered, 20).
+		WithMutipleWorker(5), // Process up to 5 messages concurrently
+})
+```
+
+### Advanced Strategy Example
+
+Combine multiple strategies for fine-grained control:
+
+```go
+broker.NamedSubscribe("priority-queue", "advanced", gobroke.SubscribeParams{
+	Handler: func(data any) {
+		log.Printf("Processing: %v", data)
+		time.Sleep(time.Millisecond * 500)
+	},
+	Strategy: gobroke.NewStrategy(gobroke.SingleBuffered, 15).
+		WithDrop(gobroke.DropOldest).      // Keep newest messages
+		WithMutipleWorker(3),               // Max 3 concurrent workers
 })
 ```
 
