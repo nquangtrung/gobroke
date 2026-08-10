@@ -52,6 +52,30 @@ func (t *TopicImpl) GetParams() TopicSetupParams {
 	return t.params
 }
 
+func (t *TopicImpl) Loop(ctx context.Context) {
+	for {
+		select {
+		case <-t.stopChannel:
+			log.Printf("[%s] topic stopped", t.name)
+			return
+		case <-ctx.Done():
+			log.Printf("[%s] topic context done, start graceful shutdown", t.name)
+			t.Stop()
+		case data := <-t.receiveChannel:
+			t.subscribers.mu.Lock()
+
+			subs := t.subscribers.all
+
+			log.Printf("[%s] received data: %v", t.name, data)
+			for _, subscriber := range subs {
+				subscriber.Receive(data)
+			}
+			// Can not use defer here, defer will wait until the end of the function,
+			// which is after for
+			t.subscribers.mu.Unlock()
+		}
+	}
+}
 func (t *TopicImpl) Start(ctx context.Context) {
 	t.mu.Lock()
 
@@ -66,28 +90,7 @@ func (t *TopicImpl) Start(ctx context.Context) {
 		t.mu.Unlock()
 
 		log.Printf("[%s] topic started", t.name)
-		for {
-			select {
-			case <-t.stopChannel:
-				log.Printf("[%s] topic stopped", t.name)
-				return
-			case <-ctx.Done():
-				log.Printf("[%s] topic context done, start graceful shutdown", t.name)
-				t.Stop()
-			case data := <-t.receiveChannel:
-				t.subscribers.mu.Lock()
-
-				subs := t.subscribers.all
-
-				log.Printf("[%s] received data: %v", t.name, data)
-				for _, subscriber := range subs {
-					subscriber.Receive(data)
-				}
-				// Can not use defer here, defer will wait until the end of the function,
-				// which is after for
-				t.subscribers.mu.Unlock()
-			}
-		}
+		t.Loop(ctx)
 	}()
 }
 

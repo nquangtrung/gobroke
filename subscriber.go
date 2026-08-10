@@ -53,6 +53,22 @@ func (s *SubscriberImpl) Unsubscribe() {
 	topic.Unsubscribe(s)
 }
 
+func (s *SubscriberImpl) Loop(ctx context.Context) {
+	log.Printf("[%s] [%s] subscriber started", s.topic, s.name)
+	for {
+		select {
+		case <-s.stopChannel:
+			log.Printf("[%s] [%s] subscriber stopped", s.topic, s.name)
+			return
+		case <-ctx.Done():
+			log.Printf("[%s] [%s] subscriber context done, start graceful shutdown", s.topic, s.name)
+			s.Stop()
+		case data := <-s.strategy.Consume():
+			log.Printf("[%s] [%s] received data (%s)", s.topic, s.name, data)
+			s.strategy.GetWorkerStrategy().Execute(s.handler, data)
+		}
+	}
+}
 func (s *SubscriberImpl) Start(ctx context.Context) {
 	s.mu.Lock()
 
@@ -64,20 +80,7 @@ func (s *SubscriberImpl) Start(ctx context.Context) {
 
 	go func() {
 		s.mu.Unlock()
-		log.Printf("[%s] [%s] subscriber started", s.topic, s.name)
-		for {
-			select {
-			case <-s.stopChannel:
-				log.Printf("[%s] [%s] subscriber stopped", s.topic, s.name)
-				return
-			case <-ctx.Done():
-				log.Printf("[%s] [%s] subscriber context done, start graceful shutdown", s.topic, s.name)
-				s.Stop()
-			case data := <-s.strategy.Consume():
-				log.Printf("[%s] [%s] received data (%s)", s.topic, s.name, data)
-				s.strategy.GetWorkerStrategy().Execute(s.handler, data)
-			}
-		}
+		s.Loop(ctx)
 	}()
 }
 
