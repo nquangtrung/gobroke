@@ -46,7 +46,7 @@ func main() {
 			log.Println("[s-hang-oldest] finished hanging, received", data)
 			received3 = append(received3, data.(string))
 		},
-		Strategy: strategies.NewStrategy(strategies.SingleBuffered).
+		Strategy: strategies.NewStrategyUnion(strategies.SingleBuffered).
 			WithBackPressure(strategies.NewBackPressureStrategy(strategies.DropOldest)).
 			WithWorker(strategies.NewMultipleWorker(3)),
 	})
@@ -59,7 +59,7 @@ func main() {
 			log.Println("[s-hang-newest] finished hanging, received", data)
 			received4 = append(received4, data.(string))
 		},
-		Strategy: strategies.NewStrategy(strategies.SingleBuffered, 4),
+		Strategy: strategies.NewStrategyUnion(strategies.SingleBuffered, 4),
 	})
 
 	time.Sleep(time.Millisecond * 100)

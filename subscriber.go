@@ -64,7 +64,7 @@ func (s *SubscriberImpl) Loop() {
 			return
 		case data := <-s.strategy.Consume():
 			log.Printf("[%s] [%s] subscriber received data (%s)", s.topic, s.name, data)
-			s.strategy.GetWorkerStrategy().Execute(s.handler, data)
+			s.strategy.Execute(s.handler, data)
 		}
 	}
 }
