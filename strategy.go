@@ -17,19 +17,17 @@ type Strategy interface {
 	Consume() chan any
 	Stop()
 
-	GetFullStrategy() DropStrategy
+	GetBackPressureStrategy() BackPressureStrategy
 	GetWorkerStrategy() WorkerStrategy
 
-	WithDrop(strategyType SubscriberFullStrategyType) Strategy
-
-	WithSimpleWorker() Strategy
-	WithMutipleWorker(maxWorker int) Strategy
+	WithBackPressure(strategy BackPressureStrategy) Strategy
+	WithWorker(strategy WorkerStrategy) Strategy
 }
 
 type SingleBufferedConsumerStrategy struct {
-	channel chan any
-	full    DropStrategy
-	worker  WorkerStrategy
+	channel      chan any
+	backpressure BackPressureStrategy
+	worker       WorkerStrategy
 }
 
 func (s SingleBufferedConsumerStrategy) Receive(data any) {
@@ -37,7 +35,7 @@ func (s SingleBufferedConsumerStrategy) Receive(data any) {
 	case s.channel <- data:
 		return
 	default:
-		s.full.Drop(s, data)
+		s.backpressure.Drop(s, data)
 	}
 }
 
@@ -49,24 +47,17 @@ func (s SingleBufferedConsumerStrategy) GetWorkerStrategy() WorkerStrategy {
 	return s.worker
 }
 
-func (s SingleBufferedConsumerStrategy) GetFullStrategy() DropStrategy {
-	return s.full
+func (s SingleBufferedConsumerStrategy) GetBackPressureStrategy() BackPressureStrategy {
+	return s.backpressure
 }
 
-func (s SingleBufferedConsumerStrategy) WithDrop(strategyType SubscriberFullStrategyType) Strategy {
-	s.full = newFullStrategy(strategyType)
+func (s SingleBufferedConsumerStrategy) WithBackPressure(strategy BackPressureStrategy) Strategy {
+	s.backpressure = strategy
 	return s
 }
 
-func (s SingleBufferedConsumerStrategy) WithSimpleWorker() Strategy {
-	builder := WorkerStrategyBuilderImpl{}.Strategy(Simple)
-	s.worker = builder.Build()
-	return s
-}
-
-func (s SingleBufferedConsumerStrategy) WithMutipleWorker(maxWorker int) Strategy {
-	builder := WorkerStrategyBuilderImpl{}.Strategy(MultipleWorker).MaxRoutine(maxWorker)
-	s.worker = builder.Build()
+func (s SingleBufferedConsumerStrategy) WithWorker(strategy WorkerStrategy) Strategy {
+	s.worker = strategy
 	return s
 }
 
@@ -81,14 +72,19 @@ func NewStrategy(strategyType SubscriberStrategyType, bufferSize ...int) Strateg
 		resolvedBufferSize = bufferSize[0]
 	}
 	channel := make(chan any, resolvedBufferSize)
+
 	switch strategyType {
 	case SingleBuffered:
 		return SingleBufferedConsumerStrategy{
 			channel: channel,
-		}.WithDrop(DropNewest).WithSimpleWorker()
+		}.
+			WithBackPressure(NewBackPressureStrategy(DropNewest)).
+			WithWorker(NewSimpleWorker())
 	default:
 		return SingleBufferedConsumerStrategy{
 			channel: channel,
-		}.WithDrop(DropNewest).WithSimpleWorker()
+		}.
+			WithBackPressure(NewBackPressureStrategy(DropNewest)).
+			WithWorker(NewSimpleWorker())
 	}
 }

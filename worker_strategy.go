@@ -70,3 +70,16 @@ func (w WorkerStrategyBuilderImpl) Build() WorkerStrategy {
 		return &SimpleWorkerStrategy{}
 	}
 }
+
+func NewSimpleWorker() WorkerStrategy {
+	builder := WorkerStrategyBuilderImpl{}.
+		Strategy(Simple)
+	return builder.Build()
+}
+
+func NewMultipleWorker(maxWorker int) WorkerStrategy {
+	builder := WorkerStrategyBuilderImpl{}.
+		Strategy(MultipleWorker).
+		MaxRoutine(maxWorker)
+	return builder.Build()
+}

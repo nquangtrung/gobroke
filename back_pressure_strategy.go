@@ -2,14 +2,14 @@ package gobroke
 
 import "log"
 
-type SubscriberFullStrategyType int
+type BackPressureStrategyType int
 
 const (
-	DropOldest SubscriberFullStrategyType = iota
+	DropOldest BackPressureStrategyType = iota
 	DropNewest
 )
 
-type DropStrategy interface {
+type BackPressureStrategy interface {
 	Drop(strategy Strategy, data any)
 }
 
@@ -31,7 +31,7 @@ func (s *DropNewestStrategy) Drop(strategy Strategy, data any) {
 	// no-op
 }
 
-func newFullStrategy(strategyType SubscriberFullStrategyType) DropStrategy {
+func NewBackPressureStrategy(strategyType BackPressureStrategyType) BackPressureStrategy {
 	switch strategyType {
 	case DropOldest:
 		return &DropOldestStrategy{}
