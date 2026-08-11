@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"trontria.com/gobroke"
+	"trontria.com/gobroke/strategies"
 )
 
 func main() {
@@ -45,9 +46,9 @@ func main() {
 			log.Println("[s-hang-oldest] finished hanging, received", data)
 			received3 = append(received3, data.(string))
 		},
-		Strategy: gobroke.NewStrategy(gobroke.SingleBuffered).
-			WithBackPressure(gobroke.NewBackPressureStrategy(gobroke.DropOldest)).
-			WithWorker(gobroke.NewMultipleWorker(3)),
+		Strategy: strategies.NewStrategy(strategies.SingleBuffered).
+			WithBackPressure(strategies.NewBackPressureStrategy(strategies.DropOldest)).
+			WithWorker(strategies.NewMultipleWorker(3)),
 	})
 
 	received4 := []string{}
@@ -58,7 +59,7 @@ func main() {
 			log.Println("[s-hang-newest] finished hanging, received", data)
 			received4 = append(received4, data.(string))
 		},
-		Strategy: gobroke.NewStrategy(gobroke.SingleBuffered, 4),
+		Strategy: strategies.NewStrategy(strategies.SingleBuffered, 4),
 	})
 
 	time.Sleep(time.Millisecond * 100)

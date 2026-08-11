@@ -1,4 +1,4 @@
-package gobroke
+package strategies
 
 type SubscriberStrategyType int
 
@@ -7,10 +7,6 @@ const (
 	// DoubleBuffered
 )
 
-type SubscribeParams struct {
-	Handler  func(data any)
-	Strategy Strategy
-}
 
 type Strategy interface {
 	Receive(data any)

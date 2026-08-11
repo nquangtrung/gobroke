@@ -1,4 +1,4 @@
-package gobroke
+package strategies
 
 import "log"
 

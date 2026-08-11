@@ -4,7 +4,14 @@ import (
 	"context"
 	"log"
 	"sync"
+
+	"trontria.com/gobroke/strategies"
 )
+
+type SubscribeParams struct {
+	Handler  func(data any)
+	Strategy strategies.Strategy
+}
 
 type Broker interface {
 	Start()

@@ -4,6 +4,8 @@ import (
 	"crypto/rand"
 	"log"
 	"sync"
+
+	"trontria.com/gobroke/strategies"
 )
 
 type TopicChild interface {
@@ -165,12 +167,12 @@ func (t *TopicImpl) Subscribe(params SubscribeParams) Subscriber {
 	return t.NamedSubscribe(rand.Text(), params)
 }
 
-func resolveSubscriberStrategy(params SubscribeParams) Strategy {
+func resolveSubscriberStrategy(params SubscribeParams) strategies.Strategy {
 	if params.Strategy != nil {
 		return params.Strategy
 	}
 
-	return NewStrategy(SingleBuffered)
+	return strategies.NewStrategy(strategies.SingleBuffered)
 }
 
 func (t *TopicImpl) NamedSubscribe(name string, params SubscribeParams) Subscriber {

@@ -3,6 +3,8 @@ package gobroke
 import (
 	"log"
 	"sync"
+
+	"trontria.com/gobroke/strategies"
 )
 
 type Subscriber interface {
@@ -27,7 +29,7 @@ type SubscriberImpl struct {
 	stopChannel chan bool
 	mu          sync.Mutex
 
-	strategy Strategy
+	strategy strategies.Strategy
 }
 
 type Subscribers struct {
