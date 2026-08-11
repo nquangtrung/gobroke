@@ -1,7 +1,6 @@
 package gobroke
 
 import (
-	"context"
 	"log"
 	"sync"
 )
@@ -12,7 +11,7 @@ type Subscriber interface {
 
 	Name() string
 
-	Start(ctx context.Context)
+	Start()
 	Stop()
 
 	Receive(data any)
@@ -53,23 +52,21 @@ func (s *SubscriberImpl) Unsubscribe() {
 	topic.Unsubscribe(s)
 }
 
-func (s *SubscriberImpl) Loop(ctx context.Context) {
+func (s *SubscriberImpl) Loop() {
 	log.Printf("[%s] [%s] subscriber started", s.topic, s.name)
 	for {
 		select {
 		case <-s.stopChannel:
 			log.Printf("[%s] [%s] subscriber stopped", s.topic, s.name)
+			s.Shutdown()
 			return
-		case <-ctx.Done():
-			log.Printf("[%s] [%s] subscriber context done, start graceful shutdown", s.topic, s.name)
-			s.Stop()
 		case data := <-s.strategy.Consume():
-			log.Printf("[%s] [%s] received data (%s)", s.topic, s.name, data)
+			log.Printf("[%s] [%s] subscriber received data (%s)", s.topic, s.name, data)
 			s.strategy.GetWorkerStrategy().Execute(s.handler, data)
 		}
 	}
 }
-func (s *SubscriberImpl) Start(ctx context.Context) {
+func (s *SubscriberImpl) Start() {
 	s.mu.Lock()
 
 	if s.stopChannel != nil {
@@ -80,20 +77,16 @@ func (s *SubscriberImpl) Start(ctx context.Context) {
 
 	go func() {
 		s.mu.Unlock()
-		s.Loop(ctx)
+		s.Loop()
 	}()
 }
 
 func (s *SubscriberImpl) Stop() {
+	s.stopChannel <- true
+}
+func (s *SubscriberImpl) Shutdown() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	if s.stopChannel == nil {
-		return
-	}
-	s.stopChannel <- true
-	close(s.stopChannel)
-	s.stopChannel = nil
 
 	s.strategy.Stop()
 

@@ -11,10 +11,6 @@ import (
 
 func main() {
 	broker := gobroke.NewBroker()
-	defer func() {
-		// TODO: Handle graceful exit
-		broker.Stop()
-	}()
 
 	topic := "fruits"
 	broker.SetupTopic(gobroke.TopicSetupParams{
@@ -79,18 +75,21 @@ func main() {
 
 	wg.Wait()
 
-	log.Println("Published all available fruits")
-	log.Printf("[received1] %v", received1)
-	log.Printf("[received2] %v", received2)
-	log.Printf("[received3] %v", received3)
-	log.Printf("[received4] %v", received4)
+	defer func() {
+		// TODO: Handle graceful exit
+		broker.Stop()
+		log.Printf("[received1] %v", received1)
+		log.Printf("[received2] %v", received2)
+		log.Printf("[received3] %v", received3)
+		log.Printf("[received4] %v", received4)
+	}()
 }
 
 func looper(broker gobroke.Broker, topic string, wg *sync.WaitGroup, value string) {
 	publisher := broker.CreatePublisher(topic)
 
 	go func() {
-		for i := range 25 {
+		for i := range 5 {
 			valueToPublish := fmt.Sprintf("%s-%d", value, i)
 			log.Printf("[%s] publishing %s", value, valueToPublish)
 			publisher.Publish(valueToPublish)

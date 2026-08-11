@@ -2,12 +2,15 @@ package gobroke
 
 import (
 	"context"
+	"log"
 	"sync"
 )
 
 type Broker interface {
 	Start()
 	Stop()
+
+	Done() <-chan struct{}
 
 	Subscribe(topic string, params SubscribeParams) Subscriber
 	NamedSubscribe(topic string, name string, params SubscribeParams) Subscriber
@@ -18,6 +21,7 @@ type Broker interface {
 	GetTopic(topic string) Topic
 
 	SetupTopic(params TopicSetupParams) Topic
+	ReleaseTopic(topic Topic)
 }
 
 type BrokerImpl struct {
@@ -26,14 +30,17 @@ type BrokerImpl struct {
 
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	wg *sync.WaitGroup
+}
+
+func (b *BrokerImpl) Done() <-chan struct{} {
+	return b.ctx.Done()
 }
 
 func (b *BrokerImpl) Start() {
 	var once sync.Once
 	once.Do(func() {
-		b.mu.Lock()
-		defer b.mu.Unlock()
-
 		b.topics = make(map[string]Topic)
 		b.ctx, b.cancel = context.WithCancel(context.Background())
 	})
@@ -41,6 +48,7 @@ func (b *BrokerImpl) Start() {
 
 func (b *BrokerImpl) Stop() {
 	b.cancel()
+	b.wg.Wait()
 }
 
 func (b *BrokerImpl) Publish(topicName string, data any) {
@@ -70,9 +78,15 @@ func (b *BrokerImpl) SetupTopic(params TopicSetupParams) Topic {
 		topic = newTopic(b, params)
 		b.topics[topicName] = topic
 	}
-	topic.Start(b.ctx)
+	topic.Start()
+	b.wg.Add(1)
 
 	return b.topics[topicName]
+}
+
+func (b *BrokerImpl) ReleaseTopic(topic Topic) {
+	log.Printf("releasing topic %s", topic.GetName())
+	b.wg.Done()
 }
 
 func (b *BrokerImpl) Subscribe(topicName string, params SubscribeParams) Subscriber {
