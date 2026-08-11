@@ -11,14 +11,17 @@ type Strategy interface {
 	Receive(data any)
 	Consume() chan any
 	Stop()
+}
 
+type StrategyUnion interface {
+	Strategy
 	GetBackPressureStrategy() BackPressureStrategy
 	GetDeadLetterQueueStrategy() DeadLetterQueueStrategy
 	GetWorkerStrategy() WorkerStrategy
 
-	WithDeadLetterQueue(strategy DeadLetterQueueStrategy) Strategy
-	WithBackPressure(strategy BackPressureStrategy) Strategy
-	WithWorker(strategy WorkerStrategy) Strategy
+	WithDeadLetterQueue(strategy DeadLetterQueueStrategy) StrategyUnion
+	WithBackPressure(strategy BackPressureStrategy) StrategyUnion
+	WithWorker(strategy WorkerStrategy) StrategyUnion
 }
 
 type SingleBufferedConsumerStrategy struct {
@@ -51,12 +54,12 @@ func (s SingleBufferedConsumerStrategy) GetWorkerStrategy() WorkerStrategy {
 func (s SingleBufferedConsumerStrategy) GetBackPressureStrategy() BackPressureStrategy {
 	return s.backpressure
 }
-func (s SingleBufferedConsumerStrategy) WithBackPressure(strategy BackPressureStrategy) Strategy {
+func (s SingleBufferedConsumerStrategy) WithBackPressure(strategy BackPressureStrategy) StrategyUnion {
 	s.backpressure = strategy
 	return s
 }
 
-func (s SingleBufferedConsumerStrategy) WithWorker(strategy WorkerStrategy) Strategy {
+func (s SingleBufferedConsumerStrategy) WithWorker(strategy WorkerStrategy) StrategyUnion {
 	s.worker = strategy
 	return s
 }
@@ -64,7 +67,7 @@ func (s SingleBufferedConsumerStrategy) WithWorker(strategy WorkerStrategy) Stra
 func (s SingleBufferedConsumerStrategy) GetDeadLetterQueueStrategy() DeadLetterQueueStrategy {
 	return s.dlq
 }
-func (s SingleBufferedConsumerStrategy) WithDeadLetterQueue(strategy DeadLetterQueueStrategy) Strategy {
+func (s SingleBufferedConsumerStrategy) WithDeadLetterQueue(strategy DeadLetterQueueStrategy) StrategyUnion {
 	s.dlq = strategy
 	return s
 }
@@ -74,7 +77,7 @@ func (s SingleBufferedConsumerStrategy) Stop() {
 	s.channel = nil
 }
 
-func NewStrategy(strategyType SubscriberStrategyType, bufferSize ...int) Strategy {
+func NewStrategy(strategyType SubscriberStrategyType, bufferSize ...int) StrategyUnion {
 	resolvedBufferSize := 10
 	if len(bufferSize) > 0 {
 		resolvedBufferSize = bufferSize[0]
