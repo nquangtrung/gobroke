@@ -7,15 +7,16 @@ const (
 	// DoubleBuffered
 )
 
-
 type Strategy interface {
 	Receive(data any)
 	Consume() chan any
 	Stop()
 
 	GetBackPressureStrategy() BackPressureStrategy
+	GetDeadLetterQueueStrategy() DeadLetterQueueStrategy
 	GetWorkerStrategy() WorkerStrategy
 
+	WithDeadLetterQueue(strategy DeadLetterQueueStrategy) Strategy
 	WithBackPressure(strategy BackPressureStrategy) Strategy
 	WithWorker(strategy WorkerStrategy) Strategy
 }
@@ -24,6 +25,7 @@ type SingleBufferedConsumerStrategy struct {
 	channel      chan any
 	backpressure BackPressureStrategy
 	worker       WorkerStrategy
+	dlq          DeadLetterQueueStrategy
 }
 
 func (s SingleBufferedConsumerStrategy) Receive(data any) {
@@ -31,8 +33,11 @@ func (s SingleBufferedConsumerStrategy) Receive(data any) {
 	case s.channel <- data:
 		return
 	default:
-		s.backpressure.Drop(s, data)
 	}
+	if s.dlq.Deliver(s, data) {
+		return
+	}
+	s.backpressure.Drop(s, data)
 }
 
 func (s SingleBufferedConsumerStrategy) Consume() chan any {
@@ -46,7 +51,6 @@ func (s SingleBufferedConsumerStrategy) GetWorkerStrategy() WorkerStrategy {
 func (s SingleBufferedConsumerStrategy) GetBackPressureStrategy() BackPressureStrategy {
 	return s.backpressure
 }
-
 func (s SingleBufferedConsumerStrategy) WithBackPressure(strategy BackPressureStrategy) Strategy {
 	s.backpressure = strategy
 	return s
@@ -54,6 +58,14 @@ func (s SingleBufferedConsumerStrategy) WithBackPressure(strategy BackPressureSt
 
 func (s SingleBufferedConsumerStrategy) WithWorker(strategy WorkerStrategy) Strategy {
 	s.worker = strategy
+	return s
+}
+
+func (s SingleBufferedConsumerStrategy) GetDeadLetterQueueStrategy() DeadLetterQueueStrategy {
+	return s.dlq
+}
+func (s SingleBufferedConsumerStrategy) WithDeadLetterQueue(strategy DeadLetterQueueStrategy) Strategy {
+	s.dlq = strategy
 	return s
 }
 
@@ -75,12 +87,14 @@ func NewStrategy(strategyType SubscriberStrategyType, bufferSize ...int) Strateg
 			channel: channel,
 		}.
 			WithBackPressure(NewBackPressureStrategy(DropNewest)).
+			WithDeadLetterQueue(NewNoDeadLetterQueueStrategy()).
 			WithWorker(NewSimpleWorker())
 	default:
 		return SingleBufferedConsumerStrategy{
 			channel: channel,
 		}.
 			WithBackPressure(NewBackPressureStrategy(DropNewest)).
+			WithDeadLetterQueue(NewNoDeadLetterQueueStrategy()).
 			WithWorker(NewSimpleWorker())
 	}
 }
