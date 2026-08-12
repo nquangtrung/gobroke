@@ -62,6 +62,19 @@ func main() {
 		Strategy: strategies.NewStrategyUnion(strategies.SingleBuffered, 4),
 	})
 
+	received5 := []string{}
+	chain := strategies.NewStartNode()
+	chain.
+		Then(strategies.NewConsumeNodeWithWorkerPool(strategies.NewMultipleWorkerPool(3, func(data any) {
+			received5 = append(received5, data.(string))
+		}))).
+		Then(strategies.NewConsumeNodeWithWorkerPool(strategies.NewSingleWorkerPool(func(data any) {
+			log.Printf("[s=strategy-v2] dlq: %s", data)
+		})))
+	broker.NamedSubscribe(topic, "s-strategy-v2", gobroke.SubscribeParams{
+		Strategy: strategies.NewStrategyChain(chain),
+	})
+
 	time.Sleep(time.Millisecond * 100)
 
 	var wg sync.WaitGroup
