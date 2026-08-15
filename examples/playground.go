@@ -8,7 +8,7 @@ import (
 
 	"trontria.com/gobroke"
 	"trontria.com/gobroke/strategies/chain"
-	"trontria.com/gobroke/strategies/worker"
+	"trontria.com/gobroke/worker"
 )
 
 func main() {
@@ -66,21 +66,27 @@ func main() {
 	received5 := []string{}
 	dlq := []string{}
 	strategy := chain.NewStrategyFromSlice([]chain.ChainNode{
-		chain.NewConsumeNode(worker.NewMultipleWorkerPool(worker.MultipleWorkerPoolParams{
-			MaxWorker:  3,
-			BufferSize: 5,
-			Handler: func(data any) {
-				log.Printf("s-strategy-v2 received %s", data)
-				time.Sleep(time.Millisecond * 1000)
-				received5 = append(received5, data.(string))
-			}})),
-		chain.NewConsumeNode(worker.NewMultipleWorkerPool(worker.MultipleWorkerPoolParams{
-			MaxWorker:  1,
-			BufferSize: 10,
-			Handler: func(data any) {
-				log.Printf("dlq received %s", data)
-				dlq = append(dlq, data.(string))
-			}})),
+		chain.NewConsumeNode(chain.NewConsumeNodeParams{
+			Runner: worker.NewMultipleWorkerPool(worker.MultipleWorkerPoolParams{
+				MaxWorker:  3,
+				BufferSize: 3,
+				Handler: func(data any) {
+					log.Printf("s-strategy-v2 received %s", data)
+					time.Sleep(time.Millisecond * 2000)
+					received5 = append(received5, data.(string))
+				}}),
+			TimeOut: time.Millisecond * 500,
+		}),
+		chain.NewConsumeNode(chain.NewConsumeNodeParams{
+			Runner: worker.NewMultipleWorkerPool(worker.MultipleWorkerPoolParams{
+				MaxWorker:  1,
+				BufferSize: 10,
+				Handler: func(data any) {
+					log.Printf("dlq received %s", data)
+					dlq = append(dlq, data.(string))
+				}}),
+			TimeOut: time.Millisecond * 500,
+		}),
 	})
 	broker.NamedSubscribe(topic, "s-strategy-v2", gobroke.SubscribeParams{
 		Strategy: strategy,

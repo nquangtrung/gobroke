@@ -2,27 +2,43 @@ package chain
 
 import (
 	"log"
+	"time"
 
 	"trontria.com/gobroke/strategies"
-	"trontria.com/gobroke/strategies/worker"
+	"trontria.com/gobroke/utils"
 )
 
 type ConsumeNode struct {
-	pool worker.WorkerPool
+	timeOut time.Duration
+	runner  *utils.BaseRunner
 	Nextable
 }
 
 func (c *ConsumeNode) Stop(strategy strategies.Strategy) {
-	c.pool.Stop()
+	c.runner.Stop()
 	c.Nextable.Stop(strategy)
 }
 func (c *ConsumeNode) Consume(strategy strategies.Strategy, data any) {
+	timeOut := time.After(c.timeOut)
 	select {
-	case c.pool.Receive() <- data:
+	case c.runner.Receive() <- data:
 		log.Printf("consume node consuming %v", data)
 		return
-	default:
+	case <-timeOut:
 		log.Printf("consume node busy, passing it to the next node")
 		c.Next(strategy, data)
+	}
+}
+
+type NewConsumeNodeParams struct {
+	TimeOut time.Duration
+	Runner  *utils.BaseRunner
+}
+
+func NewConsumeNode(params NewConsumeNodeParams) ChainNode {
+	go params.Runner.Start()
+	return &ConsumeNode{
+		runner:  params.Runner,
+		timeOut: params.TimeOut,
 	}
 }

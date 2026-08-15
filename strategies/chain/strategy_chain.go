@@ -4,7 +4,6 @@ import (
 	"log"
 
 	"trontria.com/gobroke/strategies"
-	"trontria.com/gobroke/strategies/worker"
 )
 
 type StrategyChain interface {
@@ -33,13 +32,6 @@ func (s *StrategyChainWithNode) Execute(handler func(data any), data any) {
 
 func NewStartNode() ChainNode {
 	return &ByPassNode{}
-}
-
-func NewConsumeNode(pool worker.WorkerPool) ChainNode {
-	go pool.Start()
-	return &ConsumeNode{
-		pool: pool,
-	}
 }
 
 func NewStrategyChain(chain ChainNode) StrategyChain {
