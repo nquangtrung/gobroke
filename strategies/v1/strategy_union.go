@@ -42,6 +42,9 @@ func (s SingleBufferedConsumerStrategy) Consume() chan any {
 	return s.channel
 }
 
+func (s SingleBufferedConsumerStrategy) Drop(data any) {
+}
+
 func (s SingleBufferedConsumerStrategy) Execute(handler func(data any), data any) {
 	s.GetWorkerStrategy().Execute(handler, data)
 }

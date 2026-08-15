@@ -6,6 +6,7 @@ type ChainNode interface {
 	Consume(strategy strategies.Strategy, data any)
 	Then(node ChainNode) ChainNode
 	Stop(strategy strategies.Strategy)
+	Drop(data any)
 }
 
 func fromSlice(nodes []ChainNode) ChainNode {

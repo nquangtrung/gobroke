@@ -31,26 +31,31 @@ func main() {
 	dlq := []string{}
 	strategy := chain.NewStrategyFromSlice([]chain.ChainNode{
 		chain.NewConsumeNode(chain.NewConsumeNodeParams{
+			TimeOut: time.Millisecond * 500,
+			Drop:    chain.DropFirst,
+			Name:    "consume",
 			Runner: worker.NewMultipleWorkerPool(worker.MultipleWorkerPoolParams{
 				MaxWorker:  3,
-				BufferSize: 3,
+				BufferSize: 1,
 				Handler: func(data any) {
 					log.Printf("s-strategy-v2 received %s", data)
-					time.Sleep(time.Millisecond * 2000)
+					time.Sleep(time.Millisecond * 3000)
 					received2 = append(received2, data.(string))
 				}}),
-			TimeOut: time.Millisecond * 500,
 		}),
 		chain.NewConsumeNode(chain.NewConsumeNodeParams{
+			TimeOut: time.Millisecond * 500,
+			Name:    "dlq",
 			Runner: worker.NewMultipleWorkerPool(worker.MultipleWorkerPoolParams{
 				MaxWorker:  1,
-				BufferSize: 10,
+				BufferSize: 1,
 				Handler: func(data any) {
 					log.Printf("dlq received %s", data)
+					time.Sleep(time.Millisecond * 3000)
 					dlq = append(dlq, data.(string))
 				}}),
-			TimeOut: time.Millisecond * 500,
 		}),
+		chain.NewDropNode(),
 	})
 	broker.NamedSubscribe(topic, "s-strategy-v2", gobroke.SubscribeParams{
 		Strategy: strategy,
@@ -75,7 +80,7 @@ func main() {
 	defer func() {
 		broker.Stop()
 		log.Printf("[received1] %v", received1)
-		log.Printf("[received5] %v", received2)
+		log.Printf("[received2] %v", received2)
 		log.Printf("[dlq] %v", dlq)
 	}()
 }

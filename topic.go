@@ -95,6 +95,7 @@ func resolveSubscriberStrategy(params SubscribeParams) strategies.Strategy {
 
 	return chain.NewStrategyFromSlice([]chain.ChainNode{
 		chain.NewConsumeNode(chain.NewConsumeNodeParams{
+			Name: "consume",
 			Runner: worker.NewMultipleWorkerPool(worker.MultipleWorkerPoolParams{
 				MaxWorker:  1,
 				BufferSize: 19,
@@ -102,6 +103,7 @@ func resolveSubscriberStrategy(params SubscribeParams) strategies.Strategy {
 			}),
 			TimeOut: time.Millisecond * 500,
 		}),
+		chain.NewDropNode(),
 	})
 }
 

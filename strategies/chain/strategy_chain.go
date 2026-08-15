@@ -22,11 +22,9 @@ func (s *StrategyChainWithNode) Receive(data any) {
 func (s *StrategyChainWithNode) Stop() {
 	s.head.Stop(s)
 }
-
-func NewStartNode() ChainNode {
-	return &ByPassNode{}
+func (s *StrategyChainWithNode) Drop(data any) {
+	go s.head.Drop(data)
 }
-
 func NewStrategyChain(chain ChainNode) StrategyChain {
 	strategy := &StrategyChainWithNode{
 		head: chain,
