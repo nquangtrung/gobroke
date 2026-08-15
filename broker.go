@@ -143,3 +143,12 @@ func (b *BrokerImpl) CreatePublisher(topicName string) Publisher {
 
 	return publisher
 }
+
+func NewBroker() Broker {
+	var wg sync.WaitGroup
+	broker := &BrokerImpl{
+		wg: &wg,
+	}
+	broker.Start()
+	return broker
+}

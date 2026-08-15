@@ -140,16 +140,12 @@ func (t *TopicImpl) CreatePublisher(b Broker) Publisher {
 
 func (t *TopicImpl) Unsubscribe(subscriber Subscriber) {
 	go func() {
-		log.Printf("[%s] [%s] unsubscribe requested, before: {%d}\n", t.name, subscriber.Name(), len(t.subscribers.all))
 		t.subscribers.mu.Lock()
-		defer log.Printf("[%s] [%s] unsubscribe finished, after: {%d}\n", t.name, subscriber.Name(), len(t.subscribers.all))
 		defer t.subscribers.mu.Unlock()
 
 		for i, s := range t.subscribers.all {
 			if s.Name() == subscriber.Name() {
-				log.Printf("[%s] [%s] %d %d\n", t.name, s.Name(), len(t.subscribers.all[:i]), len(t.subscribers.all[i+1:]))
 				t.subscribers.all = append(t.subscribers.all[:i], t.subscribers.all[i+1:]...)
-				log.Printf("[%s] [%s] sssunsubscribe finished, after: {%d}\n", t.name, subscriber.Name(), len(t.subscribers.all))
 				s.Stop()
 				log.Printf("[%s] [%s] unsubscribed\n", t.name, s.Name())
 				return
