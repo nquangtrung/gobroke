@@ -1,14 +1,15 @@
-package strategies
+package v1
+
+import "trontria.com/gobroke/strategies"
 
 type SubscriberStrategyType int
 
 const (
 	SingleBuffered SubscriberStrategyType = iota
-	// DoubleBuffered
 )
 
 type StrategyUnion interface {
-	Strategy
+	strategies.Strategy
 	GetBackPressureStrategy() BackPressureStrategy
 	GetDeadLetterQueueStrategy() DeadLetterQueueStrategy
 	GetWorkerStrategy() WorkerStrategy

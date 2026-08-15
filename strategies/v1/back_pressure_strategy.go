@@ -1,6 +1,8 @@
-package strategies
+package v1
 
-import "log"
+import (
+	"trontria.com/gobroke/strategies"
+)
 
 type BackPressureStrategyType int
 
@@ -10,22 +12,22 @@ const (
 )
 
 type BackPressureStrategy interface {
-	Drop(strategy Strategy, data any)
+	Drop(strategy strategies.Strategy, data any)
 }
 
 type DropOldestStrategy struct{}
 
-func (s *DropOldestStrategy) Drop(strategy Strategy, data any) {
+func (s *DropOldestStrategy) Drop(strategy strategies.Strategy, data any) {
 	// drop the oldest data
-	discarded := <-strategy.Consume()
-	log.Printf("discarded %v", discarded)
+	// discarded := <-strategy.Consume()
+	// log.Printf("discarded %v", discarded)
 	// push the new data to the subscriber channel
-	strategy.Consume() <- data
+	// strategy.Consume() <- data
 }
 
 type DropNewestStrategy struct{}
 
-func (s *DropNewestStrategy) Drop(strategy Strategy, data any) {
+func (s *DropNewestStrategy) Drop(strategy strategies.Strategy, data any) {
 	// drop the newest data, leaving the subscriber channel full
 	// simply discard the data
 	// no-op

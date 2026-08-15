@@ -91,7 +91,6 @@ func (b *BrokerImpl) SetupTopic(params TopicSetupParams) Topic {
 		topic = newTopic(b, params)
 		b.topics[topicName] = topic
 	}
-	topic.Start()
 	b.wg.Add(1)
 
 	return b.topics[topicName]

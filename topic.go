@@ -4,8 +4,11 @@ import (
 	"crypto/rand"
 	"log"
 	"sync"
+	"time"
 
 	"trontria.com/gobroke/strategies"
+	"trontria.com/gobroke/strategies/chain"
+	"trontria.com/gobroke/worker"
 )
 
 type TopicChild interface {
@@ -15,7 +18,6 @@ type TopicChild interface {
 type Topic interface {
 	GetName() string
 
-	Start()
 	Stop()
 
 	Publish(data any)
@@ -43,7 +45,6 @@ type TopicImpl struct {
 	params     TopicSetupParams
 
 	receiveChannel chan any
-	stopChannel    chan bool
 	mu             sync.Mutex
 }
 
@@ -59,11 +60,8 @@ func (t *TopicImpl) SendToAllSubscribers(data any) {
 
 	for _, subscriber := range subs {
 		log.Printf("[%s] [%s] publishing data to subscriber: %v", t.name, subscriber.Name(), data)
-		go subscriber.Receive(data)
+		go func() { subscriber.Receive() <- data }()
 	}
-}
-
-func (t *TopicImpl) Start() {
 }
 
 func (t *TopicImpl) GetName() string {
@@ -95,23 +93,26 @@ func resolveSubscriberStrategy(params SubscribeParams) strategies.Strategy {
 		return params.Strategy
 	}
 
-	return strategies.NewStrategyUnion(strategies.SingleBuffered)
+	return chain.NewStrategyFromSlice([]chain.ChainNode{
+		chain.NewConsumeNode(chain.NewConsumeNodeParams{
+			Runner: worker.NewMultipleWorkerPool(worker.MultipleWorkerPoolParams{
+				MaxWorker:  1,
+				BufferSize: 19,
+				Handler:    params.Handler,
+			}),
+			TimeOut: time.Millisecond * 500,
+		}),
+	})
 }
 
 func (t *TopicImpl) NamedSubscribe(name string, params SubscribeParams) Subscriber {
-	log.Printf("[%s] Named subscribe requested", t.name)
+	log.Printf("[%s] named subscribe requested", t.name)
 	t.mu.Lock()
 	log.Printf("[%s] lock acquired for named subscribe", t.name)
 	defer t.mu.Unlock()
 
-	subscriber := &SubscriberImpl{
-		topic:    t.name,
-		handler:  params.Handler,
-		broker:   t.broker,
-		name:     name,
-		strategy: resolveSubscriberStrategy(params),
-	}
-	subscriber.Start()
+	subscriber := NewSubscriber(t.broker, t.name, name, resolveSubscriberStrategy(params))
+	go subscriber.Start()
 
 	t.subscribers.all = append(t.subscribers.all, subscriber)
 
