@@ -19,58 +19,68 @@ func main() {
 	})
 
 	received1 := []string{}
-	broker.NamedSubscribe(topic, "s1", gobroke.SubscribeParams{
-		Handler: func(data any) {
-			received1 = append(received1, data.(string))
-			log.Printf("[s1] received %v", data)
-		},
-	})
+	// broker.NamedSubscribe(topic, "s1", gobroke.SubscribeParams{
+	// 	Handler: func(data any) {
+	// 		received1 = append(received1, data.(string))
+	// 		log.Printf("[s1] received %v", data)
+	// 	},
+	// })
 
 	received2 := []string{}
-	var subscriber2 gobroke.Subscriber
-	subscriber2 = broker.NamedSubscribe(topic, "s2", gobroke.SubscribeParams{
-		Handler: func(data any) {
-			received2 = append(received2, data.(string))
-			log.Printf("[s2] received %v", received2)
-			if len(received2) == 2 {
-				subscriber2.Unsubscribe()
-			}
-		},
-	})
+	// var subscriber2 gobroke.Subscriber
+	// subscriber2 = broker.NamedSubscribe(topic, "s2", gobroke.SubscribeParams{
+	// 	Handler: func(data any) {
+	// 		received2 = append(received2, data.(string))
+	// 		log.Printf("[s2] received %v", received2)
+	// 		if len(received2) == 2 {
+	// 			subscriber2.Unsubscribe()
+	// 		}
+	// 	},
+	// })
 
 	received3 := []string{}
-	broker.NamedSubscribe(topic, "s-hang-oldest", gobroke.SubscribeParams{
-		Handler: func(data any) {
-			log.Println("[s-hang-oldest] before hanging, received", data)
-			time.Sleep(time.Millisecond * 1000)
-			log.Println("[s-hang-oldest] finished hanging, received", data)
-			received3 = append(received3, data.(string))
-		},
-		Strategy: strategies.NewStrategyUnion(strategies.SingleBuffered).
-			WithBackPressure(strategies.NewBackPressureStrategy(strategies.DropOldest)).
-			WithWorker(strategies.NewMultipleWorker(3)),
-	})
+	// broker.NamedSubscribe(topic, "s-hang-oldest", gobroke.SubscribeParams{
+	// 	Handler: func(data any) {
+	// 		log.Println("[s-hang-oldest] before hanging, received", data)
+	// 		time.Sleep(time.Millisecond * 1000)
+	// 		log.Println("[s-hang-oldest] finished hanging, received", data)
+	// 		received3 = append(received3, data.(string))
+	// 	},
+	// 	Strategy: strategies.NewStrategyUnion(strategies.SingleBuffered).
+	// 		WithBackPressure(strategies.NewBackPressureStrategy(strategies.DropOldest)).
+	// 		WithWorker(strategies.NewMultipleWorker(3)),
+	// })
 
 	received4 := []string{}
-	broker.NamedSubscribe(topic, "s-hang-newest", gobroke.SubscribeParams{
-		Handler: func(data any) {
-			log.Println("[s-hang-newest] before hanging, received", data)
-			time.Sleep(time.Millisecond * 1000)
-			log.Println("[s-hang-newest] finished hanging, received", data)
-			received4 = append(received4, data.(string))
-		},
-		Strategy: strategies.NewStrategyUnion(strategies.SingleBuffered, 4),
-	})
+	// broker.NamedSubscribe(topic, "s-hang-newest", gobroke.SubscribeParams{
+	// 	Handler: func(data any) {
+	// 		log.Println("[s-hang-newest] before hanging, received", data)
+	//
+	// 		log.Println("[s-hang-newest] finished hanging, received", data)
+	// 		received4 = append(received4, data.(string))
+	// 	},
+	// 	Strategy: strategies.NewStrategyUnion(strategies.SingleBuffered, 4),
+	// })
 
 	received5 := []string{}
-	chain := strategies.NewStartNode()
-	chain.
-		Then(strategies.NewConsumeNodeWithWorkerPool(strategies.NewMultipleWorkerPool(3, func(data any) {
-			received5 = append(received5, data.(string))
-		}))).
-		Then(strategies.NewConsumeNodeWithWorkerPool(strategies.NewSingleWorkerPool(func(data any) {
-			log.Printf("[s=strategy-v2] dlq: %s", data)
-		})))
+	dlq := []string{}
+	chain := strategies.FromSlice([]strategies.ChainNode{
+		strategies.NewConsumeNode(strategies.NewMultipleWorkerPool(strategies.MultipleWorkerPoolParams{
+			MaxWorker:  3,
+			BufferSize: 10,
+			Handler: func(data any) {
+				log.Printf("s-strategy-v2 received %s", data)
+				time.Sleep(time.Millisecond * 1000)
+				received5 = append(received5, data.(string))
+			}})),
+		strategies.NewConsumeNode(strategies.NewMultipleWorkerPool(strategies.MultipleWorkerPoolParams{
+			MaxWorker:  1,
+			BufferSize: 1,
+			Handler: func(data any) {
+				log.Printf("dlq received %s", data)
+				dlq = append(dlq, data.(string))
+			}})),
+	})
 	broker.NamedSubscribe(topic, "s-strategy-v2", gobroke.SubscribeParams{
 		Strategy: strategies.NewStrategyChain(chain),
 	})
@@ -92,12 +102,13 @@ func main() {
 	wg.Wait()
 
 	defer func() {
-		// TODO: Handle graceful exit
 		broker.Stop()
 		log.Printf("[received1] %v", received1)
 		log.Printf("[received2] %v", received2)
 		log.Printf("[received3] %v", received3)
 		log.Printf("[received4] %v", received4)
+		log.Printf("[received5] %v", received5)
+		log.Printf("[dlq] %v", dlq)
 	}()
 }
 

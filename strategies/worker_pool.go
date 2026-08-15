@@ -1,5 +1,7 @@
 package strategies
 
+import "log"
+
 type WorkerPool interface {
 	Receive() chan any
 	Start()
@@ -47,6 +49,7 @@ type MultiWorkerPool struct {
 }
 
 func (m *MultiWorkerPool) Execute(data any) {
+	log.Printf("executing %v", data)
 	m.guard <- data
 	go func() {
 		m.handler(data)
@@ -54,17 +57,27 @@ func (m *MultiWorkerPool) Execute(data any) {
 	}()
 }
 
-func NewSingleWorkerPool(handler func(data any)) WorkerPool {
+func NewSingleWorkerPool(bufferSize int, handler func(data any)) WorkerPool {
 	return &SingleWorkerPool{
-		handler: handler,
+		handler:     handler,
+		channel:     make(chan any, bufferSize),
+		stopChannel: make(chan any),
 	}
 }
 
-func NewMultipleWorkerPool(maxWorker int, handler func(data any)) WorkerPool {
+type MultipleWorkerPoolParams struct {
+	MaxWorker  int
+	BufferSize int
+	Handler    func(data any)
+}
+
+func NewMultipleWorkerPool(params MultipleWorkerPoolParams) WorkerPool {
 	return &MultiWorkerPool{
-		guard: make(chan any, maxWorker),
+		guard: make(chan any, params.MaxWorker),
 		SingleWorkerPool: SingleWorkerPool{
-			handler: handler,
+			handler:     params.Handler,
+			channel:     make(chan any, params.BufferSize),
+			stopChannel: make(chan any),
 		},
 	}
 }

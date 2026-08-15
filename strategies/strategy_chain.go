@@ -1,8 +1,11 @@
 package strategies
 
+import "log"
+
 type ChainNode interface {
 	Consume(strategy Strategy, data any)
 	Then(node ChainNode) ChainNode
+	Stop(strategy Strategy)
 }
 
 type StrategyChain interface {
@@ -10,38 +13,23 @@ type StrategyChain interface {
 }
 
 type StrategyChainWithNode struct {
-	head        ChainNode
-	channel     chan any
-	stopChannel chan any
+	head ChainNode
 }
 
 func (s *StrategyChainWithNode) Receive(data any) {
-	s.channel <- data
+	log.Printf("chain strategy received %s", data)
+	s.head.Consume(s, data)
 }
 
 func (s *StrategyChainWithNode) Consume() chan any {
-	return s.channel
+	return nil
 }
 
 func (s *StrategyChainWithNode) Stop() {
-	s.stopChannel <- true
+	s.head.Stop(s)
 }
 
 func (s *StrategyChainWithNode) Execute(handler func(data any), data any) {
-	// handler(data)
-}
-
-func (s *StrategyChainWithNode) Start() {
-	for {
-		select {
-		case data := <-s.channel:
-			s.head.Consume(s, data)
-		case <-s.stopChannel:
-			defer close(s.channel)
-			defer close(s.stopChannel)
-			return
-		}
-	}
 }
 
 type Nextable struct {
@@ -54,7 +42,15 @@ func (n *Nextable) Then(node ChainNode) ChainNode {
 }
 func (n *Nextable) Next(strategy Strategy, data any) {
 	if n.next != nil {
+		log.Printf("Executing next node")
 		n.next.Consume(strategy, data)
+	} else {
+		log.Printf("This is the last node, end")
+	}
+}
+func (n *Nextable) Stop(strategy Strategy) {
+	if n.next != nil {
+		n.next.Stop(strategy)
 	}
 }
 
@@ -63,17 +59,23 @@ type ByPassNode struct {
 }
 
 func (b *ByPassNode) Consume(strategy Strategy, data any) {
+	log.Printf("By passing node...")
 	b.Next(strategy, data)
 }
 
 type ConsumeNode struct {
-	channel chan any
+	pool WorkerPool
 	Nextable
 }
 
+func (c *ConsumeNode) Stop(strategy Strategy) {
+	c.pool.Stop()
+	c.Nextable.Stop(strategy)
+}
 func (c *ConsumeNode) Consume(strategy Strategy, data any) {
+	log.Printf("consume node receive %v", data)
 	select {
-	case c.channel <- data:
+	case c.pool.Receive() <- data:
 		return
 	default:
 		c.Next(strategy, data)
@@ -92,32 +94,31 @@ type DropNode struct {
 }
 
 func (d *DropNode) Consume(strategy Strategy, data any) {
-	if d.dropType == DropLatest {
-		// Do nothing
-	} else {
-		<-strategy.Consume()
-		strategy.Consume() <- data
-	}
 }
 
 func NewStartNode() ChainNode {
 	return &ByPassNode{}
 }
-func NewConsumeNode(consume chan any) ChainNode {
+func NewConsumeNode(pool WorkerPool) ChainNode {
+	go pool.Start()
 	return &ConsumeNode{
-		channel: consume,
-	}
-}
-func NewConsumeNodeWithWorkerPool(pool WorkerPool) ChainNode {
-	return &ConsumeNode{
-		channel: pool.Receive(),
+		pool: pool,
 	}
 }
 func NewStrategyChain(chain ChainNode) StrategyChain {
 	strategy := &StrategyChainWithNode{
 		head: chain,
 	}
-	go strategy.Start()
 
 	return strategy
+}
+
+func FromSlice(nodes []ChainNode) ChainNode {
+	head := nodes[0]
+	current := head
+	for i := 1; i < len(nodes); i++ {
+		current.Then(nodes[i])
+		current = nodes[i]
+	}
+	return head
 }

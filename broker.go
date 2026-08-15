@@ -54,7 +54,13 @@ func (b *BrokerImpl) Start() {
 }
 
 func (b *BrokerImpl) Stop() {
-	b.cancel()
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	for _, topic := range b.topics {
+		topic.Stop()
+	}
+
 	b.wg.Wait()
 }
 

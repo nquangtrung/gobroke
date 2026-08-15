@@ -38,6 +38,7 @@ type Subscribers struct {
 }
 
 func (s *SubscriberImpl) Receive(data any) {
+	log.Printf("[%s] [%s] subscriber passing to strategy %s", s.topic, s.name, data)
 	s.strategy.Receive(data)
 }
 

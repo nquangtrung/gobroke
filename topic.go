@@ -33,21 +33,11 @@ type TopicSetupParams struct {
 	BufferSize int
 }
 
-type TopicStatus int
-
-const (
-	TopicInitialized TopicStatus = iota
-	TopicRunning
-	TopicDraining
-	TopicStopped
-)
-
 type TopicImpl struct {
 	name        string
 	subscribers *Subscribers
 	publishers  *Publishers
 	broker      Broker
-	status      TopicStatus
 
 	bufferSize int
 	params     TopicSetupParams
@@ -67,88 +57,24 @@ func (t *TopicImpl) SendToAllSubscribers(data any) {
 
 	subs := t.subscribers.all
 
-	log.Printf("[%s] loop received data: %v", t.name, data)
+	log.Printf("[%s] publishing data to subscribers (%d): %v", t.name, len(subs), data)
 	for _, subscriber := range subs {
-		subscriber.Receive(data)
+		log.Printf("[%s] [%s] publishing data to subscriber: %v", t.name, subscriber.Name(), data)
+		go subscriber.Receive(data)
+		log.Printf("[%s] [%s] published data to subscriber: %v", t.name, subscriber.Name(), data)
 	}
 }
-func (t *TopicImpl) Loop() {
-	for {
-		select {
-		case <-t.stopChannel:
-			log.Printf("[%s] topic received stop signal", t.name)
-			t.Shutdown()
-			return
-		case <-t.broker.Done():
-			log.Printf("[%s] topic received canceled signal", t.name)
-			t.Shutdown()
-			return
-		case data := <-t.receiveChannel:
-			t.SendToAllSubscribers(data)
-		}
-	}
-}
+
 func (t *TopicImpl) Start() {
-	t.mu.Lock()
-
-	log.Printf("[%s] lock acquired for start", t.name)
-	if t.stopChannel != nil {
-		return
-	}
-
-	t.stopChannel = make(chan bool, 1)
-
-	go func() {
-		t.status = TopicRunning
-		t.mu.Unlock()
-
-		log.Printf("[%s] topic started", t.name)
-		t.Loop()
-	}()
 }
 
 func (t *TopicImpl) GetName() string {
 	return t.name
 }
 
-func (t *TopicImpl) Drain() {
-	t.status = TopicDraining
-	log.Printf("[%s] start draining, messages left: %d", t.name, len(t.receiveChannel))
-
-	// Now do not receive anything, just keep draining the stopChannel
-	t.subscribers.mu.Lock()
-	defer t.subscribers.mu.Unlock()
-
-	for {
-		select {
-		case data := <-t.receiveChannel:
-
-			subs := t.subscribers.all
-			log.Printf("[%s] draining data: %v", t.name, data)
-			for _, subscriber := range subs {
-				subscriber.Receive(data)
-			}
-		default:
-			log.Printf("[%s] draining complete, messages left: %d", t.name, len(t.receiveChannel))
-			return
-		}
-	}
-}
-
 func (t *TopicImpl) Stop() {
-	t.stopChannel <- true
-}
-
-func (t *TopicImpl) Shutdown() {
-	log.Printf("[%s] shutdown requested", t.name)
 	t.mu.Lock()
-	log.Printf("[%s] lock acquired for shutdown", t.name)
 	defer t.mu.Unlock()
-
-	t.Drain()
-
-	close(t.receiveChannel)
-	t.receiveChannel = nil
 
 	t.subscribers.mu.Lock()
 	defer t.subscribers.mu.Unlock()
@@ -157,7 +83,6 @@ func (t *TopicImpl) Shutdown() {
 	}
 	t.subscribers.all = nil
 
-	t.status = TopicStopped
 	t.broker.ReleaseTopic(t)
 
 	log.Printf("[%s] topic shutdown", t.name)
@@ -176,13 +101,10 @@ func resolveSubscriberStrategy(params SubscribeParams) strategies.Strategy {
 }
 
 func (t *TopicImpl) NamedSubscribe(name string, params SubscribeParams) Subscriber {
+	log.Printf("[%s] Named subscribe requested", t.name)
 	t.mu.Lock()
 	log.Printf("[%s] lock acquired for named subscribe", t.name)
 	defer t.mu.Unlock()
-
-	if t.status != TopicRunning {
-		return nil
-	}
 
 	subscriber := &SubscriberImpl{
 		topic:    t.name,
@@ -199,10 +121,7 @@ func (t *TopicImpl) NamedSubscribe(name string, params SubscribeParams) Subscrib
 }
 
 func (t *TopicImpl) Publish(data any) {
-	if t.status != TopicRunning {
-		return
-	}
-	t.receiveChannel <- data
+	t.SendToAllSubscribers(data)
 }
 
 func (t *TopicImpl) CreatePublisher(b Broker) Publisher {
@@ -249,16 +168,11 @@ func newTopic(b Broker, params TopicSetupParams) Topic {
 	bufferSize := resolveBufferSize(params)
 
 	return &TopicImpl{
-		name:   params.Name,
-		status: TopicInitialized,
-
+		name:        params.Name,
 		subscribers: &Subscribers{},
 		publishers:  &Publishers{},
-
-		broker:         b,
-		receiveChannel: make(chan any, bufferSize),
-
-		bufferSize: bufferSize,
-		params:     params,
+		broker:      b,
+		bufferSize:  bufferSize,
+		params:      params,
 	}
 }
