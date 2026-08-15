@@ -57,11 +57,9 @@ func (t *TopicImpl) SendToAllSubscribers(data any) {
 
 	subs := t.subscribers.all
 
-	log.Printf("[%s] publishing data to subscribers (%d): %v", t.name, len(subs), data)
 	for _, subscriber := range subs {
 		log.Printf("[%s] [%s] publishing data to subscriber: %v", t.name, subscriber.Name(), data)
 		go subscriber.Receive(data)
-		log.Printf("[%s] [%s] published data to subscriber: %v", t.name, subscriber.Name(), data)
 	}
 }
 

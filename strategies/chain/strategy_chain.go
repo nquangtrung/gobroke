@@ -1,0 +1,56 @@
+package chain
+
+import (
+	"log"
+
+	"trontria.com/gobroke/strategies"
+	"trontria.com/gobroke/strategies/worker"
+)
+
+type StrategyChain interface {
+	strategies.Strategy
+}
+
+type StrategyChainWithNode struct {
+	head ChainNode
+}
+
+func (s *StrategyChainWithNode) Receive(data any) {
+	log.Printf("chain strategy received %s", data)
+	s.head.Consume(s, data)
+}
+
+func (s *StrategyChainWithNode) Consume() chan any {
+	return nil
+}
+
+func (s *StrategyChainWithNode) Stop() {
+	s.head.Stop(s)
+}
+
+func (s *StrategyChainWithNode) Execute(handler func(data any), data any) {
+}
+
+func NewStartNode() ChainNode {
+	return &ByPassNode{}
+}
+
+func NewConsumeNode(pool worker.WorkerPool) ChainNode {
+	go pool.Start()
+	return &ConsumeNode{
+		pool: pool,
+	}
+}
+
+func NewStrategyChain(chain ChainNode) StrategyChain {
+	strategy := &StrategyChainWithNode{
+		head: chain,
+	}
+
+	return strategy
+}
+
+func NewStrategyFromSlice(nodes []ChainNode) StrategyChain {
+	head := fromSlice(nodes)
+	return NewStrategyChain(head)
+}

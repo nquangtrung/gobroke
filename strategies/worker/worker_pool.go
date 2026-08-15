@@ -1,4 +1,4 @@
-package strategies
+package worker
 
 import "log"
 
@@ -28,11 +28,22 @@ func (s *SingleWorkerPool) Start() {
 		case data := <-s.channel:
 			s.Execute(data)
 		case <-s.stopChannel:
+			log.Println("worker receive stop signal, draining channel")
+			s.Drain()
 			defer close(s.stopChannel)
 			defer close(s.channel)
 			return
 		}
 	}
+}
+
+func (s *SingleWorkerPool) Drain() {
+	for len(s.channel) > 0 {
+		log.Printf("worker drains %d data left", len(s.channel))
+		data := <-s.channel
+		s.Execute(data)
+	}
+	log.Println("worker drained all data")
 }
 
 func (s *SingleWorkerPool) Stop() {

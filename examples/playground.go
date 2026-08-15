@@ -7,7 +7,8 @@ import (
 	"time"
 
 	"trontria.com/gobroke"
-	"trontria.com/gobroke/strategies"
+	"trontria.com/gobroke/strategies/chain"
+	"trontria.com/gobroke/strategies/worker"
 )
 
 func main() {
@@ -64,25 +65,25 @@ func main() {
 
 	received5 := []string{}
 	dlq := []string{}
-	chain := strategies.FromSlice([]strategies.ChainNode{
-		strategies.NewConsumeNode(strategies.NewMultipleWorkerPool(strategies.MultipleWorkerPoolParams{
+	strategy := chain.NewStrategyFromSlice([]chain.ChainNode{
+		chain.NewConsumeNode(worker.NewMultipleWorkerPool(worker.MultipleWorkerPoolParams{
 			MaxWorker:  3,
-			BufferSize: 10,
+			BufferSize: 5,
 			Handler: func(data any) {
 				log.Printf("s-strategy-v2 received %s", data)
 				time.Sleep(time.Millisecond * 1000)
 				received5 = append(received5, data.(string))
 			}})),
-		strategies.NewConsumeNode(strategies.NewMultipleWorkerPool(strategies.MultipleWorkerPoolParams{
+		chain.NewConsumeNode(worker.NewMultipleWorkerPool(worker.MultipleWorkerPoolParams{
 			MaxWorker:  1,
-			BufferSize: 1,
+			BufferSize: 10,
 			Handler: func(data any) {
 				log.Printf("dlq received %s", data)
 				dlq = append(dlq, data.(string))
 			}})),
 	})
 	broker.NamedSubscribe(topic, "s-strategy-v2", gobroke.SubscribeParams{
-		Strategy: strategies.NewStrategyChain(chain),
+		Strategy: strategy,
 	})
 
 	time.Sleep(time.Millisecond * 100)
@@ -91,8 +92,8 @@ func main() {
 
 	fruits := []string{
 		"apple",
-		"orange",
-		"peach",
+		// "orange",
+		// "peach",
 	}
 	for _, fruit := range fruits {
 		wg.Add(1)
@@ -116,7 +117,7 @@ func looper(broker gobroke.Broker, topic string, wg *sync.WaitGroup, value strin
 	publisher := broker.CreatePublisher(topic)
 
 	go func() {
-		for i := range 5 {
+		for i := range 15 {
 			valueToPublish := fmt.Sprintf("%s-%d", value, i)
 			log.Printf("[%s] publishing %s", value, valueToPublish)
 			publisher.Publish(valueToPublish)
