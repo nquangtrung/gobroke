@@ -15,7 +15,7 @@ func (s SingleWorkerPoolProcessor) Process(data any) {
 	s.handler(data)
 }
 
-func (s SingleWorkerPoolProcessor) CleanUp() {
+func (s SingleWorkerPoolProcessor) CleanUp(channel chan any) {
 }
 
 func NewSingleWorkerPool(bufferSize int, handler func(data any)) *utils.BaseRunner {

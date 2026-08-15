@@ -19,15 +19,8 @@ func (s *StrategyChainWithNode) Receive(data any) {
 	s.head.Consume(s, data)
 }
 
-func (s *StrategyChainWithNode) Consume() chan any {
-	return nil
-}
-
 func (s *StrategyChainWithNode) Stop() {
 	s.head.Stop(s)
-}
-
-func (s *StrategyChainWithNode) Execute(handler func(data any), data any) {
 }
 
 func NewStartNode() ChainNode {

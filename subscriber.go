@@ -54,7 +54,7 @@ func (s *SubscriberProcessor) Process(data any) {
 	s.strategy.Receive(data)
 }
 
-func (s *SubscriberProcessor) CleanUp() {
+func (s *SubscriberProcessor) CleanUp(channel chan any) {
 	s.strategy.Stop()
 	log.Printf("[%s] [%s] subscriber stopped", s.topic, s.name)
 }

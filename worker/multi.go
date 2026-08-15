@@ -20,7 +20,7 @@ func (m MultiWorkerPoolProcessor) Process(data any) {
 	}()
 }
 
-func (m MultiWorkerPoolProcessor) CleanUp() {
+func (m MultiWorkerPoolProcessor) CleanUp(channel chan any) {
 	close(m.guard)
 }
 

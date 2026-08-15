@@ -1,8 +1,10 @@
 package utils
 
+import "log"
+
 type Processor interface {
 	Process(data any)
-	CleanUp()
+	CleanUp(channel chan any)
 }
 
 type Runner interface {
@@ -34,10 +36,20 @@ func (r *BaseRunner) Start() {
 		case data := <-r.channel:
 			r.processor.Process(data)
 		case <-r.stopChannel:
+			r.Drain()
 			close(r.channel)
-			r.processor.CleanUp()
+			close(r.stopChannel)
+			r.processor.CleanUp(r.channel)
 			return
 		}
+	}
+}
+
+func (r *BaseRunner) Drain() {
+	log.Printf("draining the rest of the channel: %d", len(r.channel))
+	for len(r.channel) > 0 {
+		data := <-r.channel
+		r.processor.Process(data)
 	}
 }
 
