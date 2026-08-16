@@ -2,25 +2,20 @@ package gobroke
 
 import "sync"
 
-type Publisher interface {
-	TopicChild
-	Publish(data any)
-}
-
 type Publishers struct {
 	all []Publisher
 	mu  sync.Mutex
 }
 
-type PublisherImpl struct {
+type Publisher struct {
 	topic  string
-	broker Broker
+	broker *Broker
 }
 
-func (p *PublisherImpl) Publish(data any) {
+func (p *Publisher) Publish(data any) {
 	p.broker.Publish(p.topic, data)
 }
 
-func (p *PublisherImpl) Topic() Topic {
+func (p *Publisher) Topic() *Topic {
 	return p.broker.GetTopic(p.topic)
 }

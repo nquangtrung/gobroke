@@ -11,35 +11,16 @@ import (
 	"trontria.com/gobroke/worker"
 )
 
-type TopicChild interface {
-	Topic() Topic
-}
-
-type Topic interface {
-	GetName() string
-
-	Stop()
-
-	Publish(data any)
-	CreatePublisher(b Broker) Publisher
-
-	Subscribe(params SubscribeParams) Subscriber
-	NamedSubscribe(name string, params SubscribeParams) Subscriber
-	Unsubscribe(subscriber Subscriber)
-
-	GetParams() TopicSetupParams
-}
-
 type TopicSetupParams struct {
 	Name       string
 	BufferSize int
 }
 
-type TopicImpl struct {
+type Topic struct {
 	name        string
 	subscribers *Subscribers
 	publishers  *Publishers
-	broker      Broker
+	broker      *Broker
 
 	bufferSize int
 	params     TopicSetupParams
@@ -48,11 +29,11 @@ type TopicImpl struct {
 	mu             sync.Mutex
 }
 
-func (t *TopicImpl) GetParams() TopicSetupParams {
+func (t *Topic) GetParams() TopicSetupParams {
 	return t.params
 }
 
-func (t *TopicImpl) SendToAllSubscribers(data any) {
+func (t *Topic) SendToAllSubscribers(data any) {
 	t.subscribers.mu.Lock()
 	defer t.subscribers.mu.Unlock()
 
@@ -64,11 +45,11 @@ func (t *TopicImpl) SendToAllSubscribers(data any) {
 	}
 }
 
-func (t *TopicImpl) GetName() string {
+func (t *Topic) GetName() string {
 	return t.name
 }
 
-func (t *TopicImpl) Stop() {
+func (t *Topic) Stop() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -84,7 +65,7 @@ func (t *TopicImpl) Stop() {
 	log.Printf("[%s] topic shutdown", t.name)
 }
 
-func (t *TopicImpl) Subscribe(params SubscribeParams) Subscriber {
+func (t *Topic) Subscribe(params SubscribeParams) Subscriber {
 	return t.NamedSubscribe(rand.Text(), params)
 }
 
@@ -107,7 +88,7 @@ func resolveSubscriberStrategy(params SubscribeParams) strategies.Strategy {
 	})
 }
 
-func (t *TopicImpl) NamedSubscribe(name string, params SubscribeParams) Subscriber {
+func (t *Topic) NamedSubscribe(name string, params SubscribeParams) Subscriber {
 	log.Printf("[%s] named subscribe requested", t.name)
 	t.mu.Lock()
 	log.Printf("[%s] lock acquired for named subscribe", t.name)
@@ -116,29 +97,29 @@ func (t *TopicImpl) NamedSubscribe(name string, params SubscribeParams) Subscrib
 	subscriber := NewSubscriber(t.broker, t.name, name, resolveSubscriberStrategy(params))
 	go subscriber.Start()
 
-	t.subscribers.all = append(t.subscribers.all, subscriber)
+	t.subscribers.all = append(t.subscribers.all, *subscriber)
 
-	return subscriber
+	return *subscriber
 }
 
-func (t *TopicImpl) Publish(data any) {
+func (t *Topic) Publish(data any) {
 	t.SendToAllSubscribers(data)
 }
 
-func (t *TopicImpl) CreatePublisher(b Broker) Publisher {
+func (t *Topic) CreatePublisher(b *Broker) *Publisher {
 	t.mu.Lock()
 	log.Printf("[%s] lock acquired for create publisher", t.name)
 	defer t.mu.Unlock()
 
-	publisher := &PublisherImpl{
+	publisher := &Publisher{
 		topic:  t.GetName(),
 		broker: b,
 	}
-	t.publishers.all = append(t.publishers.all, publisher)
+	t.publishers.all = append(t.publishers.all, *publisher)
 	return publisher
 }
 
-func (t *TopicImpl) Unsubscribe(subscriber Subscriber) {
+func (t *Topic) Unsubscribe(subscriber Subscriber) {
 	go func() {
 		t.subscribers.mu.Lock()
 		defer t.subscribers.mu.Unlock()
@@ -161,10 +142,10 @@ func resolveBufferSize(params TopicSetupParams) int {
 	return params.BufferSize
 }
 
-func newTopic(b Broker, params TopicSetupParams) Topic {
+func newTopic(b *Broker, params TopicSetupParams) *Topic {
 	bufferSize := resolveBufferSize(params)
 
-	return &TopicImpl{
+	return &Topic{
 		name:        params.Name,
 		subscribers: &Subscribers{},
 		publishers:  &Publishers{},

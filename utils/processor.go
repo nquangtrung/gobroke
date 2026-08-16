@@ -7,11 +7,11 @@ type Processor interface {
 	CleanUp(channel chan any)
 }
 
-type Runner interface {
-	Start()
-	Stop()
-	Receive() chan any
-}
+// type Runner interface {
+// 	Start()
+// 	Stop()
+// 	Receive() chan any
+// }
 
 type BaseRunner struct {
 	channel     chan any

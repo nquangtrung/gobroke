@@ -85,7 +85,7 @@ func main() {
 	}()
 }
 
-func looper(broker gobroke.Broker, topic string, wg *sync.WaitGroup, value string) {
+func looper(broker *gobroke.Broker, topic string, wg *sync.WaitGroup, value string) {
 	publisher := broker.CreatePublisher(topic)
 
 	go func() {

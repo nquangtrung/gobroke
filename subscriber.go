@@ -8,37 +8,37 @@ import (
 	"trontria.com/gobroke/utils"
 )
 
-type Subscriber interface {
-	Unsubscribe()
+// type Subscriber interface {
+// 	Unsubscribe()
 
-	Name() string
+// 	Name() string
 
-	TopicChild
-	utils.Runner
-}
+// 	TopicChild
+// 	utils.Runner
+// }
 
 type Subscribers struct {
 	all []Subscriber
 	mu  sync.Mutex
 }
 
-type SubscriberImpl struct {
-	broker Broker
+type Subscriber struct {
+	broker *Broker
 	topic  string
 	name   string
 
 	utils.BaseRunner
 }
 
-func (s *SubscriberImpl) Topic() Topic {
+func (s Subscriber) Topic() *Topic {
 	return s.broker.GetTopic(s.topic)
 }
 
-func (s *SubscriberImpl) Name() string {
+func (s Subscriber) Name() string {
 	return s.name
 }
 
-func (s *SubscriberImpl) Unsubscribe() {
+func (s Subscriber) Unsubscribe() {
 	topic := s.Topic()
 	topic.Unsubscribe(s)
 }
@@ -59,13 +59,13 @@ func (s *SubscriberProcessor) CleanUp(channel chan any) {
 	log.Printf("[%s] [%s] subscriber stopped", s.topic, s.name)
 }
 
-func NewSubscriber(broker Broker, topic string, name string, strategy strategies.Strategy) *SubscriberImpl {
+func NewSubscriber(broker *Broker, topic string, name string, strategy strategies.Strategy) *Subscriber {
 	runner := utils.NewBaseRunner(10, &SubscriberProcessor{
 		topic:    topic,
 		name:     name,
 		strategy: strategy,
 	})
-	return &SubscriberImpl{
+	return &Subscriber{
 		topic:      topic,
 		broker:     broker,
 		name:       name,
