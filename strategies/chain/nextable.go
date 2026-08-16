@@ -8,9 +8,8 @@ type Nextable struct {
 	next ChainNode
 }
 
-func (n *Nextable) Then(node ChainNode) ChainNode {
+func (n *Nextable) Then(node ChainNode) {
 	n.next = node
-	return node
 }
 func (n *Nextable) Next(strategy strategies.Strategy, data any) {
 	if n.next != nil {

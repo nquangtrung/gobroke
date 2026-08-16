@@ -25,7 +25,7 @@ func (s *StrategyChainWithNode) Stop() {
 func (s *StrategyChainWithNode) Drop(data any) {
 	go s.head.Drop(data)
 }
-func NewStrategyChain(chain ChainNode) StrategyChain {
+func New(chain ChainNode) StrategyChain {
 	strategy := &StrategyChainWithNode{
 		head: chain,
 	}
@@ -33,7 +33,7 @@ func NewStrategyChain(chain ChainNode) StrategyChain {
 	return strategy
 }
 
-func NewStrategyFromSlice(nodes []ChainNode) StrategyChain {
+func NewFromSlice(nodes []ChainNode) StrategyChain {
 	head := fromSlice(nodes)
-	return NewStrategyChain(head)
+	return New(head)
 }

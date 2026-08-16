@@ -29,7 +29,7 @@ func main() {
 
 	received2 := []string{}
 	dlq := []string{}
-	strategy := chain.NewStrategyFromSlice([]chain.ChainNode{
+	strategy := chain.NewFromSlice([]chain.ChainNode{
 		chain.NewConsumeNode(chain.NewConsumeNodeParams{
 			TimeOut: time.Millisecond * 500,
 			Drop:    chain.DropFirst,

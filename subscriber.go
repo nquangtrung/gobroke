@@ -59,7 +59,7 @@ func (s *SubscriberProcessor) CleanUp(channel chan any) {
 	log.Printf("[%s] [%s] subscriber stopped", s.topic, s.name)
 }
 
-func NewSubscriber(broker Broker, topic string, name string, strategy strategies.Strategy) Subscriber {
+func NewSubscriber(broker Broker, topic string, name string, strategy strategies.Strategy) *SubscriberImpl {
 	runner := utils.NewBaseRunner(10, &SubscriberProcessor{
 		topic:    topic,
 		name:     name,

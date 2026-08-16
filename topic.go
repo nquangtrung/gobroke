@@ -93,7 +93,7 @@ func resolveSubscriberStrategy(params SubscribeParams) strategies.Strategy {
 		return params.Strategy
 	}
 
-	return chain.NewStrategyFromSlice([]chain.ChainNode{
+	return chain.NewFromSlice([]chain.ChainNode{
 		chain.NewConsumeNode(chain.NewConsumeNodeParams{
 			Name: "consume",
 			Runner: worker.NewMultipleWorkerPool(worker.MultipleWorkerPoolParams{

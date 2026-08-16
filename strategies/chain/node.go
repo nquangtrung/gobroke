@@ -4,7 +4,7 @@ import "trontria.com/gobroke/strategies"
 
 type ChainNode interface {
 	Consume(strategy strategies.Strategy, data any)
-	Then(node ChainNode) ChainNode
+	Then(node ChainNode)
 	Stop(strategy strategies.Strategy)
 	Drop(data any)
 }
