@@ -7,7 +7,8 @@ import (
 	"time"
 
 	"trontria.com/gobroke"
-	"trontria.com/gobroke/strategies"
+	"trontria.com/gobroke/strategies/chain"
+	"trontria.com/gobroke/worker"
 )
 
 func main() {
@@ -27,39 +28,37 @@ func main() {
 	})
 
 	received2 := []string{}
-	var subscriber2 gobroke.Subscriber
-	subscriber2 = broker.NamedSubscribe(topic, "s2", gobroke.SubscribeParams{
-		Handler: func(data any) {
-			received2 = append(received2, data.(string))
-			log.Printf("[s2] received %v", received2)
-			if len(received2) == 2 {
-				subscriber2.Unsubscribe()
-			}
-		},
+	dlq := []string{}
+	strategy := chain.NewFromSlice([]chain.ChainNode{
+		chain.NewConsumeNode(chain.NewConsumeNodeParams{
+			TimeOut: time.Millisecond * 500,
+			Drop:    chain.DropFirst,
+			Name:    "consume",
+			Runner: worker.NewMultipleWorkerPool(worker.MultipleWorkerPoolParams{
+				MaxWorker:  3,
+				BufferSize: 1,
+				Handler: func(data any) {
+					log.Printf("s-strategy-v2 received %s", data)
+					time.Sleep(time.Millisecond * 3000)
+					received2 = append(received2, data.(string))
+				}}),
+		}),
+		chain.NewConsumeNode(chain.NewConsumeNodeParams{
+			TimeOut: time.Millisecond * 500,
+			Name:    "dlq",
+			Runner: worker.NewMultipleWorkerPool(worker.MultipleWorkerPoolParams{
+				MaxWorker:  1,
+				BufferSize: 1,
+				Handler: func(data any) {
+					log.Printf("dlq received %s", data)
+					time.Sleep(time.Millisecond * 3000)
+					dlq = append(dlq, data.(string))
+				}}),
+		}),
+		chain.NewDropNode(),
 	})
-
-	received3 := []string{}
-	broker.NamedSubscribe(topic, "s-hang-oldest", gobroke.SubscribeParams{
-		Handler: func(data any) {
-			log.Println("[s-hang-oldest] before hanging, received", data)
-			time.Sleep(time.Millisecond * 1000)
-			log.Println("[s-hang-oldest] finished hanging, received", data)
-			received3 = append(received3, data.(string))
-		},
-		Strategy: strategies.NewStrategyUnion(strategies.SingleBuffered).
-			WithBackPressure(strategies.NewBackPressureStrategy(strategies.DropOldest)).
-			WithWorker(strategies.NewMultipleWorker(3)),
-	})
-
-	received4 := []string{}
-	broker.NamedSubscribe(topic, "s-hang-newest", gobroke.SubscribeParams{
-		Handler: func(data any) {
-			log.Println("[s-hang-newest] before hanging, received", data)
-			time.Sleep(time.Millisecond * 1000)
-			log.Println("[s-hang-newest] finished hanging, received", data)
-			received4 = append(received4, data.(string))
-		},
-		Strategy: strategies.NewStrategyUnion(strategies.SingleBuffered, 4),
+	broker.NamedSubscribe(topic, "s-strategy-v2", gobroke.SubscribeParams{
+		Strategy: strategy,
 	})
 
 	time.Sleep(time.Millisecond * 100)
@@ -79,12 +78,10 @@ func main() {
 	wg.Wait()
 
 	defer func() {
-		// TODO: Handle graceful exit
 		broker.Stop()
 		log.Printf("[received1] %v", received1)
 		log.Printf("[received2] %v", received2)
-		log.Printf("[received3] %v", received3)
-		log.Printf("[received4] %v", received4)
+		log.Printf("[dlq] %v", dlq)
 	}()
 }
 
@@ -92,7 +89,7 @@ func looper(broker gobroke.Broker, topic string, wg *sync.WaitGroup, value strin
 	publisher := broker.CreatePublisher(topic)
 
 	go func() {
-		for i := range 5 {
+		for i := range 15 {
 			valueToPublish := fmt.Sprintf("%s-%d", value, i)
 			log.Printf("[%s] publishing %s", value, valueToPublish)
 			publisher.Publish(valueToPublish)

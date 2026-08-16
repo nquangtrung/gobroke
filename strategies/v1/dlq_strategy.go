@@ -1,14 +1,16 @@
-package strategies
+package v1
+
+import "trontria.com/gobroke/strategies"
 
 type DeadLetterQueueStrategy interface {
-	Deliver(strategy Strategy, data any) bool
+	Deliver(strategy strategies.Strategy, data any) bool
 }
 
 type ExternalChannelDeadLetterQueueStrategy struct {
 	channel chan any
 }
 
-func (e *ExternalChannelDeadLetterQueueStrategy) Deliver(strategy Strategy, data any) bool {
+func (e *ExternalChannelDeadLetterQueueStrategy) Deliver(strategy strategies.Strategy, data any) bool {
 	select {
 	case e.channel <- data:
 		return true
@@ -20,7 +22,7 @@ func (e *ExternalChannelDeadLetterQueueStrategy) Deliver(strategy Strategy, data
 type NoDeadLetterQueueStrategy struct {
 }
 
-func (e *NoDeadLetterQueueStrategy) Deliver(strategy Strategy, data any) bool {
+func (e *NoDeadLetterQueueStrategy) Deliver(strategy strategies.Strategy, data any) bool {
 	return false
 }
 

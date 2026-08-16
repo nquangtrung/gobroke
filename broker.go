@@ -54,7 +54,13 @@ func (b *BrokerImpl) Start() {
 }
 
 func (b *BrokerImpl) Stop() {
-	b.cancel()
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	for _, topic := range b.topics {
+		topic.Stop()
+	}
+
 	b.wg.Wait()
 }
 
@@ -85,7 +91,6 @@ func (b *BrokerImpl) SetupTopic(params TopicSetupParams) Topic {
 		topic = newTopic(b, params)
 		b.topics[topicName] = topic
 	}
-	topic.Start()
 	b.wg.Add(1)
 
 	return b.topics[topicName]
@@ -137,4 +142,13 @@ func (b *BrokerImpl) CreatePublisher(topicName string) Publisher {
 	publisher := topic.CreatePublisher(b)
 
 	return publisher
+}
+
+func NewBroker() Broker {
+	var wg sync.WaitGroup
+	broker := &BrokerImpl{
+		wg: &wg,
+	}
+	broker.Start()
+	return broker
 }

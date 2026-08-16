@@ -1,14 +1,15 @@
-package strategies
+package v1
+
+import "trontria.com/gobroke/strategies"
 
 type SubscriberStrategyType int
 
 const (
 	SingleBuffered SubscriberStrategyType = iota
-	// DoubleBuffered
 )
 
 type StrategyUnion interface {
-	Strategy
+	strategies.Strategy
 	GetBackPressureStrategy() BackPressureStrategy
 	GetDeadLetterQueueStrategy() DeadLetterQueueStrategy
 	GetWorkerStrategy() WorkerStrategy
@@ -39,6 +40,9 @@ func (s SingleBufferedConsumerStrategy) Receive(data any) {
 
 func (s SingleBufferedConsumerStrategy) Consume() chan any {
 	return s.channel
+}
+
+func (s SingleBufferedConsumerStrategy) Drop(data any) {
 }
 
 func (s SingleBufferedConsumerStrategy) Execute(handler func(data any), data any) {

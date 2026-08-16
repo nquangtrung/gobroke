@@ -4,8 +4,11 @@ import (
 	"crypto/rand"
 	"log"
 	"sync"
+	"time"
 
 	"trontria.com/gobroke/strategies"
+	"trontria.com/gobroke/strategies/chain"
+	"trontria.com/gobroke/worker"
 )
 
 type TopicChild interface {
@@ -15,7 +18,6 @@ type TopicChild interface {
 type Topic interface {
 	GetName() string
 
-	Start()
 	Stop()
 
 	Publish(data any)
@@ -33,27 +35,16 @@ type TopicSetupParams struct {
 	BufferSize int
 }
 
-type TopicStatus int
-
-const (
-	TopicInitialized TopicStatus = iota
-	TopicRunning
-	TopicDraining
-	TopicStopped
-)
-
 type TopicImpl struct {
 	name        string
 	subscribers *Subscribers
 	publishers  *Publishers
 	broker      Broker
-	status      TopicStatus
 
 	bufferSize int
 	params     TopicSetupParams
 
 	receiveChannel chan any
-	stopChannel    chan bool
 	mu             sync.Mutex
 }
 
@@ -67,88 +58,19 @@ func (t *TopicImpl) SendToAllSubscribers(data any) {
 
 	subs := t.subscribers.all
 
-	log.Printf("[%s] loop received data: %v", t.name, data)
 	for _, subscriber := range subs {
-		subscriber.Receive(data)
+		log.Printf("[%s] [%s] publishing data to subscriber: %v", t.name, subscriber.Name(), data)
+		go func() { subscriber.Receive() <- data }()
 	}
-}
-func (t *TopicImpl) Loop() {
-	for {
-		select {
-		case <-t.stopChannel:
-			log.Printf("[%s] topic received stop signal", t.name)
-			t.Shutdown()
-			return
-		case <-t.broker.Done():
-			log.Printf("[%s] topic received canceled signal", t.name)
-			t.Shutdown()
-			return
-		case data := <-t.receiveChannel:
-			t.SendToAllSubscribers(data)
-		}
-	}
-}
-func (t *TopicImpl) Start() {
-	t.mu.Lock()
-
-	log.Printf("[%s] lock acquired for start", t.name)
-	if t.stopChannel != nil {
-		return
-	}
-
-	t.stopChannel = make(chan bool, 1)
-
-	go func() {
-		t.status = TopicRunning
-		t.mu.Unlock()
-
-		log.Printf("[%s] topic started", t.name)
-		t.Loop()
-	}()
 }
 
 func (t *TopicImpl) GetName() string {
 	return t.name
 }
 
-func (t *TopicImpl) Drain() {
-	t.status = TopicDraining
-	log.Printf("[%s] start draining, messages left: %d", t.name, len(t.receiveChannel))
-
-	// Now do not receive anything, just keep draining the stopChannel
-	t.subscribers.mu.Lock()
-	defer t.subscribers.mu.Unlock()
-
-	for {
-		select {
-		case data := <-t.receiveChannel:
-
-			subs := t.subscribers.all
-			log.Printf("[%s] draining data: %v", t.name, data)
-			for _, subscriber := range subs {
-				subscriber.Receive(data)
-			}
-		default:
-			log.Printf("[%s] draining complete, messages left: %d", t.name, len(t.receiveChannel))
-			return
-		}
-	}
-}
-
 func (t *TopicImpl) Stop() {
-	t.stopChannel <- true
-}
-
-func (t *TopicImpl) Shutdown() {
-	log.Printf("[%s] shutdown requested", t.name)
 	t.mu.Lock()
-	log.Printf("[%s] lock acquired for shutdown", t.name)
 	defer t.mu.Unlock()
-
-	t.Drain()
-
-	close(t.receiveChannel)
-	t.receiveChannel = nil
 
 	t.subscribers.mu.Lock()
 	defer t.subscribers.mu.Unlock()
@@ -157,7 +79,6 @@ func (t *TopicImpl) Shutdown() {
 	}
 	t.subscribers.all = nil
 
-	t.status = TopicStopped
 	t.broker.ReleaseTopic(t)
 
 	log.Printf("[%s] topic shutdown", t.name)
@@ -172,26 +93,28 @@ func resolveSubscriberStrategy(params SubscribeParams) strategies.Strategy {
 		return params.Strategy
 	}
 
-	return strategies.NewStrategyUnion(strategies.SingleBuffered)
+	return chain.NewFromSlice([]chain.ChainNode{
+		chain.NewConsumeNode(chain.NewConsumeNodeParams{
+			Name: "consume",
+			Runner: worker.NewMultipleWorkerPool(worker.MultipleWorkerPoolParams{
+				MaxWorker:  1,
+				BufferSize: 19,
+				Handler:    params.Handler,
+			}),
+			TimeOut: time.Millisecond * 500,
+		}),
+		chain.NewDropNode(),
+	})
 }
 
 func (t *TopicImpl) NamedSubscribe(name string, params SubscribeParams) Subscriber {
+	log.Printf("[%s] named subscribe requested", t.name)
 	t.mu.Lock()
 	log.Printf("[%s] lock acquired for named subscribe", t.name)
 	defer t.mu.Unlock()
 
-	if t.status != TopicRunning {
-		return nil
-	}
-
-	subscriber := &SubscriberImpl{
-		topic:    t.name,
-		handler:  params.Handler,
-		broker:   t.broker,
-		name:     name,
-		strategy: resolveSubscriberStrategy(params),
-	}
-	subscriber.Start()
+	subscriber := NewSubscriber(t.broker, t.name, name, resolveSubscriberStrategy(params))
+	go subscriber.Start()
 
 	t.subscribers.all = append(t.subscribers.all, subscriber)
 
@@ -199,10 +122,7 @@ func (t *TopicImpl) NamedSubscribe(name string, params SubscribeParams) Subscrib
 }
 
 func (t *TopicImpl) Publish(data any) {
-	if t.status != TopicRunning {
-		return
-	}
-	t.receiveChannel <- data
+	t.SendToAllSubscribers(data)
 }
 
 func (t *TopicImpl) CreatePublisher(b Broker) Publisher {
@@ -220,16 +140,12 @@ func (t *TopicImpl) CreatePublisher(b Broker) Publisher {
 
 func (t *TopicImpl) Unsubscribe(subscriber Subscriber) {
 	go func() {
-		log.Printf("[%s] [%s] unsubscribe requested, before: {%d}\n", t.name, subscriber.Name(), len(t.subscribers.all))
 		t.subscribers.mu.Lock()
-		defer log.Printf("[%s] [%s] unsubscribe finished, after: {%d}\n", t.name, subscriber.Name(), len(t.subscribers.all))
 		defer t.subscribers.mu.Unlock()
 
 		for i, s := range t.subscribers.all {
 			if s.Name() == subscriber.Name() {
-				log.Printf("[%s] [%s] %d %d\n", t.name, s.Name(), len(t.subscribers.all[:i]), len(t.subscribers.all[i+1:]))
 				t.subscribers.all = append(t.subscribers.all[:i], t.subscribers.all[i+1:]...)
-				log.Printf("[%s] [%s] sssunsubscribe finished, after: {%d}\n", t.name, subscriber.Name(), len(t.subscribers.all))
 				s.Stop()
 				log.Printf("[%s] [%s] unsubscribed\n", t.name, s.Name())
 				return
@@ -249,16 +165,11 @@ func newTopic(b Broker, params TopicSetupParams) Topic {
 	bufferSize := resolveBufferSize(params)
 
 	return &TopicImpl{
-		name:   params.Name,
-		status: TopicInitialized,
-
+		name:        params.Name,
 		subscribers: &Subscribers{},
 		publishers:  &Publishers{},
-
-		broker:         b,
-		receiveChannel: make(chan any, bufferSize),
-
-		bufferSize: bufferSize,
-		params:     params,
+		broker:      b,
+		bufferSize:  bufferSize,
+		params:      params,
 	}
 }
