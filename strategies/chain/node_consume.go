@@ -56,7 +56,7 @@ type NewConsumeNodeParams struct {
 	Name    string
 }
 
-func NewConsumeNode(params NewConsumeNodeParams) ChainNode {
+func NewConsumeNode(params NewConsumeNodeParams) *ConsumeNode {
 	go params.Runner.Start()
 	return &ConsumeNode{
 		runner:  params.Runner,
