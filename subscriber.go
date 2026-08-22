@@ -44,13 +44,13 @@ func (s Subscriber[T]) Unsubscribe() {
 }
 
 type SubscriberProcessor[T any] struct {
-	strategy strategies.Strategy
+	strategy strategies.Strategy[T]
 	topic    string
 	name     string
 }
 
 func (s *SubscriberProcessor[T]) Process(data T) {
-	log.Printf("[%s] [%s] subscriber passing to strategy %s", s.topic, s.name, data)
+	log.Printf("[%s] [%s] subscriber passing to strategy %v", s.topic, s.name, data)
 	s.strategy.Receive(data)
 }
 
@@ -59,7 +59,7 @@ func (s *SubscriberProcessor[T]) CleanUp(channel chan T) {
 	log.Printf("[%s] [%s] subscriber stopped", s.topic, s.name)
 }
 
-func NewSubscriber[T any](broker *Broker[T], topic string, name string, strategy strategies.Strategy) *Subscriber[T] {
+func NewSubscriber[T any](broker *Broker[T], topic string, name string, strategy strategies.Strategy[T]) *Subscriber[T] {
 	runner := utils.NewBaseRunner[T](10, &SubscriberProcessor[T]{
 		topic:    topic,
 		name:     name,

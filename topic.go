@@ -65,11 +65,11 @@ func (t *Topic[T]) Stop() {
 	log.Printf("[%s] topic shutdown", t.name)
 }
 
-func (t *Topic[T]) Subscribe(params SubscribeParams) Subscriber[T] {
+func (t *Topic[T]) Subscribe(params SubscribeParams[T]) Subscriber[T] {
 	return t.NamedSubscribe(rand.Text(), params)
 }
 
-func (t *Topic[T]) NamedSubscribe(name string, params SubscribeParams) Subscriber[T] {
+func (t *Topic[T]) NamedSubscribe(name string, params SubscribeParams[T]) Subscriber[T] {
 	log.Printf("[%s] named subscribe requested", t.name)
 	t.mu.Lock()
 	log.Printf("[%s] lock acquired for named subscribe", t.name)
@@ -136,21 +136,21 @@ func newTopic[T any](b *Broker[T], params TopicSetupParams) *Topic[T] {
 	}
 }
 
-func resolveSubscriberStrategy[T any](params SubscribeParams) strategies.Strategy {
+func resolveSubscriberStrategy[T any](params SubscribeParams[T]) strategies.Strategy[T] {
 	if params.Strategy != nil {
 		return params.Strategy
 	}
 
-	return chain.NewFromSlice([]chain.ChainNode{
+	return chain.NewFromSlice([]chain.ChainNode[T]{
 		chain.NewConsumeNode(chain.NewConsumeNodeParams[T]{
 			Name: "consume",
-			Runner: worker.NewMultipleWorkerPool(worker.MultipleWorkerPoolParams{
+			Runner: worker.NewMultipleWorkerPool(worker.MultipleWorkerPoolParams[T]{
 				MaxWorker:  1,
 				BufferSize: 19,
 				Handler:    params.Handler,
 			}),
 			TimeOut: time.Millisecond * 500,
 		}),
-		chain.NewDropNode(),
+		chain.NewDropNode[T](),
 	})
 }
