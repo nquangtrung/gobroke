@@ -4,10 +4,10 @@ import (
 	"trontria.com/gobroke/strategies"
 )
 
-type ByPassNode struct {
-	Nextable
+type ByPassNode[T any] struct {
+	Nextable[T]
 }
 
-func (b *ByPassNode) Consume(strategy strategies.Strategy, data any) {
+func (b *ByPassNode[T]) Consume(strategy strategies.Strategy[T], data T) {
 	b.Next(strategy, data)
 }

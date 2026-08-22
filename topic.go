@@ -16,11 +16,11 @@ type TopicSetupParams struct {
 	BufferSize int
 }
 
-type Topic struct {
+type Topic[T any] struct {
 	name        string
-	subscribers *Subscribers
-	publishers  *Publishers
-	broker      *Broker
+	subscribers *Subscribers[T]
+	publishers  *Publishers[T]
+	broker      *Broker[T]
 
 	bufferSize int
 	params     TopicSetupParams
@@ -29,11 +29,11 @@ type Topic struct {
 	mu             sync.Mutex
 }
 
-func (t *Topic) GetParams() TopicSetupParams {
+func (t *Topic[T]) GetParams() TopicSetupParams {
 	return t.params
 }
 
-func (t *Topic) SendToAllSubscribers(data any) {
+func (t *Topic[T]) SendToAllSubscribers(data T) {
 	t.subscribers.mu.Lock()
 	defer t.subscribers.mu.Unlock()
 
@@ -45,11 +45,11 @@ func (t *Topic) SendToAllSubscribers(data any) {
 	}
 }
 
-func (t *Topic) GetName() string {
+func (t *Topic[T]) GetName() string {
 	return t.name
 }
 
-func (t *Topic) Stop() {
+func (t *Topic[T]) Stop() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -65,30 +65,11 @@ func (t *Topic) Stop() {
 	log.Printf("[%s] topic shutdown", t.name)
 }
 
-func (t *Topic) Subscribe(params SubscribeParams) Subscriber {
+func (t *Topic[T]) Subscribe(params SubscribeParams) Subscriber[T] {
 	return t.NamedSubscribe(rand.Text(), params)
 }
 
-func resolveSubscriberStrategy(params SubscribeParams) strategies.Strategy {
-	if params.Strategy != nil {
-		return params.Strategy
-	}
-
-	return chain.NewFromSlice([]chain.ChainNode{
-		chain.NewConsumeNode(chain.NewConsumeNodeParams{
-			Name: "consume",
-			Runner: worker.NewMultipleWorkerPool(worker.MultipleWorkerPoolParams{
-				MaxWorker:  1,
-				BufferSize: 19,
-				Handler:    params.Handler,
-			}),
-			TimeOut: time.Millisecond * 500,
-		}),
-		chain.NewDropNode(),
-	})
-}
-
-func (t *Topic) NamedSubscribe(name string, params SubscribeParams) Subscriber {
+func (t *Topic[T]) NamedSubscribe(name string, params SubscribeParams) Subscriber[T] {
 	log.Printf("[%s] named subscribe requested", t.name)
 	t.mu.Lock()
 	log.Printf("[%s] lock acquired for named subscribe", t.name)
@@ -102,16 +83,16 @@ func (t *Topic) NamedSubscribe(name string, params SubscribeParams) Subscriber {
 	return *subscriber
 }
 
-func (t *Topic) Publish(data any) {
+func (t *Topic[T]) Publish(data T) {
 	t.SendToAllSubscribers(data)
 }
 
-func (t *Topic) CreatePublisher(b *Broker) *Publisher {
+func (t *Topic[T]) CreatePublisher(b *Broker[T]) *Publisher[T] {
 	t.mu.Lock()
 	log.Printf("[%s] lock acquired for create publisher", t.name)
 	defer t.mu.Unlock()
 
-	publisher := &Publisher{
+	publisher := &Publisher[T]{
 		topic:  t.GetName(),
 		broker: b,
 	}
@@ -119,7 +100,7 @@ func (t *Topic) CreatePublisher(b *Broker) *Publisher {
 	return publisher
 }
 
-func (t *Topic) Unsubscribe(subscriber Subscriber) {
+func (t *Topic[T]) Unsubscribe(subscriber Subscriber[T]) {
 	go func() {
 		t.subscribers.mu.Lock()
 		defer t.subscribers.mu.Unlock()
@@ -142,15 +123,34 @@ func resolveBufferSize(params TopicSetupParams) int {
 	return params.BufferSize
 }
 
-func newTopic(b *Broker, params TopicSetupParams) *Topic {
+func newTopic[T any](b *Broker[T], params TopicSetupParams) *Topic[T] {
 	bufferSize := resolveBufferSize(params)
 
-	return &Topic{
+	return &Topic[T]{
 		name:        params.Name,
-		subscribers: &Subscribers{},
-		publishers:  &Publishers{},
+		subscribers: &Subscribers[T]{},
+		publishers:  &Publishers[T]{},
 		broker:      b,
 		bufferSize:  bufferSize,
 		params:      params,
 	}
+}
+
+func resolveSubscriberStrategy[T any](params SubscribeParams) strategies.Strategy {
+	if params.Strategy != nil {
+		return params.Strategy
+	}
+
+	return chain.NewFromSlice([]chain.ChainNode{
+		chain.NewConsumeNode(chain.NewConsumeNodeParams[T]{
+			Name: "consume",
+			Runner: worker.NewMultipleWorkerPool(worker.MultipleWorkerPoolParams{
+				MaxWorker:  1,
+				BufferSize: 19,
+				Handler:    params.Handler,
+			}),
+			TimeOut: time.Millisecond * 500,
+		}),
+		chain.NewDropNode(),
+	})
 }

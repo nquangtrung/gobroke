@@ -2,15 +2,15 @@ package v1
 
 import "trontria.com/gobroke/strategies"
 
-type DeadLetterQueueStrategy interface {
-	Deliver(strategy strategies.Strategy, data any) bool
+type DeadLetterQueueStrategy[T any] interface {
+	Deliver(strategy strategies.Strategy[T], data T) bool
 }
 
-type ExternalChannelDeadLetterQueueStrategy struct {
-	channel chan any
+type ExternalChannelDeadLetterQueueStrategy[T any] struct {
+	channel chan T
 }
 
-func (e *ExternalChannelDeadLetterQueueStrategy) Deliver(strategy strategies.Strategy, data any) bool {
+func (e *ExternalChannelDeadLetterQueueStrategy[T]) Deliver(strategy strategies.Strategy[T], data T) bool {
 	select {
 	case e.channel <- data:
 		return true
@@ -19,19 +19,19 @@ func (e *ExternalChannelDeadLetterQueueStrategy) Deliver(strategy strategies.Str
 	}
 }
 
-type NoDeadLetterQueueStrategy struct {
+type NoDeadLetterQueueStrategy[T any] struct {
 }
 
-func (e *NoDeadLetterQueueStrategy) Deliver(strategy strategies.Strategy, data any) bool {
+func (e *NoDeadLetterQueueStrategy[T]) Deliver(strategy strategies.Strategy[T], data T) bool {
 	return false
 }
 
-func NewExternalChannelDeadLetterQueueStrategy(channel chan any) DeadLetterQueueStrategy {
-	return &ExternalChannelDeadLetterQueueStrategy{
+func NewExternalChannelDeadLetterQueueStrategy[T any](channel chan T) DeadLetterQueueStrategy[T] {
+	return &ExternalChannelDeadLetterQueueStrategy[T]{
 		channel: channel,
 	}
 }
 
-func NewNoDeadLetterQueueStrategy() DeadLetterQueueStrategy {
-	return &NoDeadLetterQueueStrategy{}
+func NewNoDeadLetterQueueStrategy[T any]() DeadLetterQueueStrategy[T] {
+	return &NoDeadLetterQueueStrategy[T]{}
 }

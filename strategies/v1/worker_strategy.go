@@ -2,8 +2,8 @@ package v1
 
 import "log"
 
-type WorkerStrategy interface {
-	Execute(handler func(data any), data any)
+type WorkerStrategy[T any] interface {
+	Execute(handler func(data T), data T)
 }
 
 type WorkerStrategyType int
@@ -13,18 +13,18 @@ const (
 	MultipleWorker
 )
 
-type SimpleWorkerStrategy struct{}
+type SimpleWorkerStrategy[T any] struct{}
 
-func (s SimpleWorkerStrategy) Execute(handler func(data any), data any) {
+func (s SimpleWorkerStrategy[T]) Execute(handler func(data T), data T) {
 	handler(data)
 }
 
-type MultipleWorkerStrategy struct {
+type MultipleWorkerStrategy[T any] struct {
 	maxRoutine int
 	guard      chan any
 }
 
-func (s MultipleWorkerStrategy) Execute(handler func(data any), data any) {
+func (s MultipleWorkerStrategy[T]) Execute(handler func(data T), data T) {
 	if s.guard == nil {
 		s.guard = make(chan any, s.maxRoutine)
 	}
@@ -39,46 +39,46 @@ func (s MultipleWorkerStrategy) Execute(handler func(data any), data any) {
 	}()
 }
 
-type WorkerStrategyBuilder interface {
-	Strategy(t WorkerStrategyType) WorkerStrategyBuilder
-	MaxRoutine(l int) WorkerStrategyBuilder
-	Build() WorkerStrategy
+type WorkerStrategyBuilder[T any] interface {
+	Strategy(t WorkerStrategyType) WorkerStrategyBuilder[T]
+	MaxRoutine(l int) WorkerStrategyBuilder[T]
+	Build() WorkerStrategy[T]
 }
 
-type WorkerStrategyBuilderImpl struct {
+type WorkerStrategyBuilderImpl[T any] struct {
 	strategy   WorkerStrategyType
 	maxRoutine int
 }
 
-func (w WorkerStrategyBuilderImpl) Strategy(t WorkerStrategyType) WorkerStrategyBuilder {
+func (w WorkerStrategyBuilderImpl[T]) Strategy(t WorkerStrategyType) WorkerStrategyBuilder[T] {
 	w.strategy = t
 	return w
 }
 
-func (w WorkerStrategyBuilderImpl) MaxRoutine(l int) WorkerStrategyBuilder {
+func (w WorkerStrategyBuilderImpl[T]) MaxRoutine(l int) WorkerStrategyBuilder[T] {
 	w.maxRoutine = l
 	return w
 }
 
-func (w WorkerStrategyBuilderImpl) Build() WorkerStrategy {
+func (w WorkerStrategyBuilderImpl[T]) Build() WorkerStrategy[T] {
 	switch w.strategy {
 	case Simple:
-		return &SimpleWorkerStrategy{}
+		return &SimpleWorkerStrategy[T]{}
 	case MultipleWorker:
-		return &MultipleWorkerStrategy{w.maxRoutine, make(chan any, w.maxRoutine)}
+		return &MultipleWorkerStrategy[T]{w.maxRoutine, make(chan any, w.maxRoutine)}
 	default:
-		return &SimpleWorkerStrategy{}
+		return &SimpleWorkerStrategy[T]{}
 	}
 }
 
-func NewSimpleWorker() WorkerStrategy {
-	builder := WorkerStrategyBuilderImpl{}.
+func NewSimpleWorker[T any]() WorkerStrategy[T] {
+	builder := WorkerStrategyBuilderImpl[T]{}.
 		Strategy(Simple)
 	return builder.Build()
 }
 
-func NewMultipleWorker(maxWorker int) WorkerStrategy {
-	builder := WorkerStrategyBuilderImpl{}.
+func NewMultipleWorker[T any](maxWorker int) WorkerStrategy[T] {
+	builder := WorkerStrategyBuilderImpl[T]{}.
 		Strategy(MultipleWorker).
 		MaxRoutine(maxWorker)
 	return builder.Build()

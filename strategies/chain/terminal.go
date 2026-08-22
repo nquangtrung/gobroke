@@ -2,8 +2,8 @@ package chain
 
 import "trontria.com/gobroke/strategies"
 
-type Terminal struct{}
+type Terminal[T any] struct{}
 
-func (d *Terminal) Then(node ChainNode)               {}
-func (d *Terminal) Stop(strategy strategies.Strategy) {}
-func (d *Terminal) Drop(data any)                     {}
+func (d *Terminal[T]) Then(node ChainNode[T])               {}
+func (d *Terminal[T]) Stop(strategy strategies.Strategy[T]) {}
+func (d *Terminal[T]) Drop(data T)                          {}

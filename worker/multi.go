@@ -6,12 +6,12 @@ import (
 	"trontria.com/gobroke/utils"
 )
 
-type MultiWorkerPoolProcessor struct {
+type MultiWorkerPoolProcessor[T any] struct {
 	guard   chan any
-	handler func(data any)
+	handler func(data T)
 }
 
-func (m MultiWorkerPoolProcessor) Process(data any) {
+func (m MultiWorkerPoolProcessor[T]) Process(data T) {
 	log.Printf("executing %v, spawned %d/%d", data, len(m.guard), cap(m.guard))
 	m.guard <- data
 	go func() {
@@ -20,18 +20,18 @@ func (m MultiWorkerPoolProcessor) Process(data any) {
 	}()
 }
 
-func (m MultiWorkerPoolProcessor) CleanUp(channel chan any) {
+func (m MultiWorkerPoolProcessor[T]) CleanUp(channel chan T) {
 	close(m.guard)
 }
 
-type MultipleWorkerPoolParams struct {
+type MultipleWorkerPoolParams[T any] struct {
 	MaxWorker  int
 	BufferSize int
-	Handler    func(data any)
+	Handler    func(data T)
 }
 
-func NewMultipleWorkerPool(params MultipleWorkerPoolParams) *utils.BaseRunner {
-	return utils.NewBaseRunner(params.BufferSize, MultiWorkerPoolProcessor{
+func NewMultipleWorkerPool[T any](params MultipleWorkerPoolParams[T]) *utils.BaseRunner[T] {
+	return utils.NewBaseRunner[T](params.BufferSize, MultiWorkerPoolProcessor[T]{
 		handler: params.Handler,
 		guard:   make(chan any, params.MaxWorker),
 	})

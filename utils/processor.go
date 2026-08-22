@@ -2,9 +2,9 @@ package utils
 
 import "log"
 
-type Processor interface {
-	Process(data any)
-	CleanUp(channel chan any)
+type Processor[T any] interface {
+	Process(data T)
+	CleanUp(channel chan T)
 }
 
 // type Runner interface {
@@ -13,24 +13,24 @@ type Processor interface {
 // 	Receive() chan any
 // }
 
-type BaseRunner struct {
-	channel     chan any
-	stopChannel chan any
-	processor   Processor
+type BaseRunner[T any] struct {
+	channel     chan T
+	stopChannel chan bool
+	processor   Processor[T]
 }
 
-func NewBaseRunner(buffer int, processor Processor) *BaseRunner {
-	return &BaseRunner{
-		channel:     make(chan any, buffer),
-		stopChannel: make(chan any),
+func NewBaseRunner[T any](buffer int, processor Processor[T]) *BaseRunner[T] {
+	return &BaseRunner[T]{
+		channel:     make(chan T, buffer),
+		stopChannel: make(chan bool),
 		processor:   processor,
 	}
 }
-func (r BaseRunner) Receive() chan any {
+func (r BaseRunner[T]) Receive() chan T {
 	return r.channel
 }
 
-func (r *BaseRunner) Start() {
+func (r *BaseRunner[T]) Start() {
 	for {
 		select {
 		case data := <-r.channel:
@@ -45,7 +45,7 @@ func (r *BaseRunner) Start() {
 	}
 }
 
-func (r *BaseRunner) Drain() {
+func (r *BaseRunner[T]) Drain() {
 	log.Printf("draining the rest of the channel: %d", len(r.channel))
 	for len(r.channel) > 0 {
 		data := <-r.channel
@@ -53,6 +53,6 @@ func (r *BaseRunner) Drain() {
 	}
 }
 
-func (r *BaseRunner) Stop() {
+func (r *BaseRunner[T]) Stop() {
 	r.stopChannel <- true
 }

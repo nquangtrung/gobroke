@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	broker := gobroke.NewBroker()
+	broker := gobroke.NewBroker[string]()
 
 	topic := "fruits"
 	broker.SetupTopic(gobroke.TopicSetupParams{
@@ -20,44 +20,44 @@ func main() {
 	})
 
 	received1 := []string{}
-	broker.NamedSubscribe(topic, "s1", gobroke.SubscribeParams{
-		Handler: func(data any) {
-			received1 = append(received1, data.(string))
+	broker.NamedSubscribe(topic, "s1", gobroke.SubscribeParams[string]{
+		Handler: func(data string) {
+			received1 = append(received1, data)
 			log.Printf("[s1] received %v", data)
 		},
 	})
 
 	received2 := []string{}
 	dlq := []string{}
-	strategy := chain.NewFromSlice([]chain.ChainNode{
-		chain.NewConsumeNode(chain.NewConsumeNodeParams{
+	strategy := chain.NewFromSlice([]chain.ChainNode[string]{
+		chain.NewConsumeNode(chain.NewConsumeNodeParams[string]{
 			TimeOut: time.Millisecond * 500,
 			Drop:    chain.DropFirst,
 			Name:    "consume",
-			Runner: worker.NewMultipleWorkerPool(worker.MultipleWorkerPoolParams{
+			Runner: worker.NewMultipleWorkerPool(worker.MultipleWorkerPoolParams[string]{
 				MaxWorker:  3,
 				BufferSize: 1,
-				Handler: func(data any) {
+				Handler: func(data string) {
 					log.Printf("s-strategy-v2 received %s", data)
 					time.Sleep(time.Millisecond * 3000)
-					received2 = append(received2, data.(string))
+					received2 = append(received2, data)
 				}}),
 		}),
-		chain.NewConsumeNode(chain.NewConsumeNodeParams{
+		chain.NewConsumeNode(chain.NewConsumeNodeParams[string]{
 			TimeOut: time.Millisecond * 500,
 			Name:    "dlq",
-			Runner: worker.NewMultipleWorkerPool(worker.MultipleWorkerPoolParams{
+			Runner: worker.NewMultipleWorkerPool(worker.MultipleWorkerPoolParams[string]{
 				MaxWorker:  1,
 				BufferSize: 1,
-				Handler: func(data any) {
+				Handler: func(data string) {
 					log.Printf("dlq received %s", data)
 					time.Sleep(time.Millisecond * 3000)
-					dlq = append(dlq, data.(string))
+					dlq = append(dlq, data)
 				}}),
 		}),
-		chain.NewDropNode(),
+		chain.NewDropNode[string](),
 	})
-	broker.NamedSubscribe(topic, "s-strategy-v2", gobroke.SubscribeParams{
+	broker.NamedSubscribe(topic, "s-strategy-v2", gobroke.SubscribeParams[string]{
 		Strategy: strategy,
 	})
 
@@ -85,7 +85,7 @@ func main() {
 	}()
 }
 
-func looper(broker *gobroke.Broker, topic string, wg *sync.WaitGroup, value string) {
+func looper(broker *gobroke.Broker[string], topic string, wg *sync.WaitGroup, value string) {
 	publisher := broker.CreatePublisher(topic)
 
 	go func() {

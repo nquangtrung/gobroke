@@ -11,13 +11,13 @@ const (
 	DropNewest
 )
 
-type BackPressureStrategy interface {
-	Drop(strategy strategies.Strategy, data any)
+type BackPressureStrategy[T any] interface {
+	Drop(strategy strategies.Strategy[T], data T)
 }
 
-type DropOldestStrategy struct{}
+type DropOldestStrategy[T any] struct{}
 
-func (s *DropOldestStrategy) Drop(strategy strategies.Strategy, data any) {
+func (s *DropOldestStrategy[T]) Drop(strategy strategies.Strategy[T], data T) {
 	// drop the oldest data
 	// discarded := <-strategy.Consume()
 	// log.Printf("discarded %v", discarded)
@@ -25,21 +25,21 @@ func (s *DropOldestStrategy) Drop(strategy strategies.Strategy, data any) {
 	// strategy.Consume() <- data
 }
 
-type DropNewestStrategy struct{}
+type DropNewestStrategy[T any] struct{}
 
-func (s *DropNewestStrategy) Drop(strategy strategies.Strategy, data any) {
+func (s *DropNewestStrategy[T]) Drop(strategy strategies.Strategy[T], data T) {
 	// drop the newest data, leaving the subscriber channel full
 	// simply discard the data
 	// no-op
 }
 
-func NewBackPressureStrategy(strategyType BackPressureStrategyType) BackPressureStrategy {
+func NewBackPressureStrategy[T any](strategyType BackPressureStrategyType) BackPressureStrategy[T] {
 	switch strategyType {
 	case DropOldest:
-		return &DropOldestStrategy{}
+		return &DropOldestStrategy[T]{}
 	case DropNewest:
-		return &DropNewestStrategy{}
+		return &DropNewestStrategy[T]{}
 	default:
-		return &DropNewestStrategy{}
+		return &DropNewestStrategy[T]{}
 	}
 }

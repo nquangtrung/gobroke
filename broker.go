@@ -8,13 +8,13 @@ import (
 	"trontria.com/gobroke/strategies"
 )
 
-type SubscribeParams struct {
-	Handler  func(data any)
-	Strategy strategies.Strategy
+type SubscribeParams[T any] struct {
+	Handler  func(data T)
+	Strategy strategies.Strategy[T]
 }
 
-type Broker struct {
-	topics map[string]*Topic
+type Broker[T any] struct {
+	topics map[string]*Topic[T]
 	mu     sync.Mutex
 
 	ctx    context.Context
@@ -23,19 +23,19 @@ type Broker struct {
 	wg *sync.WaitGroup
 }
 
-func (b *Broker) Done() <-chan struct{} {
+func (b *Broker[T]) Done() <-chan struct{} {
 	return b.ctx.Done()
 }
 
-func (b *Broker) Start() {
+func (b *Broker[T]) Start() {
 	var once sync.Once
 	once.Do(func() {
-		b.topics = make(map[string]*Topic)
+		b.topics = make(map[string]*Topic[T])
 		b.ctx, b.cancel = context.WithCancel(context.Background())
 	})
 }
 
-func (b *Broker) Stop() {
+func (b *Broker[T]) Stop() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -46,7 +46,7 @@ func (b *Broker) Stop() {
 	b.wg.Wait()
 }
 
-func (b *Broker) Publish(topicName string, data any) {
+func (b *Broker[T]) Publish(topicName string, data T) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -58,11 +58,11 @@ func (b *Broker) Publish(topicName string, data any) {
 	topic.Publish(data)
 }
 
-func (b *Broker) GetTopic(topicName string) *Topic {
+func (b *Broker[T]) GetTopic(topicName string) *Topic[T] {
 	return b.topics[topicName]
 }
 
-func (b *Broker) SetupTopic(params TopicSetupParams) *Topic {
+func (b *Broker[T]) SetupTopic(params TopicSetupParams) *Topic[T] {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -78,12 +78,12 @@ func (b *Broker) SetupTopic(params TopicSetupParams) *Topic {
 	return b.topics[topicName]
 }
 
-func (b *Broker) ReleaseTopic(topic *Topic) {
+func (b *Broker[T]) ReleaseTopic(topic *Topic[T]) {
 	log.Printf("releasing topic %s", topic.GetName())
 	b.wg.Done()
 }
 
-func (b *Broker) Subscribe(topicName string, params SubscribeParams) Subscriber {
+func (b *Broker[T]) Subscribe(topicName string, params SubscribeParams[T]) Subscriber[T] {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -96,7 +96,7 @@ func (b *Broker) Subscribe(topicName string, params SubscribeParams) Subscriber 
 	return subscriber
 }
 
-func (b *Broker) NamedSubscribe(topicName string, name string, params SubscribeParams) Subscriber {
+func (b *Broker[T]) NamedSubscribe(topicName string, name string, params SubscribeParams[T]) Subscriber[T] {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -109,11 +109,11 @@ func (b *Broker) NamedSubscribe(topicName string, name string, params SubscribeP
 	return subscriber
 }
 
-func (b *Broker) Unsubscribe(subscriber *Subscriber) {
+func (b *Broker[T]) Unsubscribe(subscriber *Subscriber[T]) {
 	subscriber.Unsubscribe()
 }
 
-func (b *Broker) CreatePublisher(topicName string) *Publisher {
+func (b *Broker[T]) CreatePublisher(topicName string) *Publisher[T] {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -126,9 +126,9 @@ func (b *Broker) CreatePublisher(topicName string) *Publisher {
 	return publisher
 }
 
-func NewBroker() *Broker {
+func NewBroker[T any]() *Broker[T] {
 	var wg sync.WaitGroup
-	broker := &Broker{
+	broker := &Broker[T]{
 		wg: &wg,
 	}
 	broker.Start()

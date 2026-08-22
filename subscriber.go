@@ -17,55 +17,55 @@ import (
 // 	utils.Runner
 // }
 
-type Subscribers struct {
-	all []Subscriber
+type Subscribers[T any] struct {
+	all []Subscriber[T]
 	mu  sync.Mutex
 }
 
-type Subscriber struct {
-	broker *Broker
+type Subscriber[T any] struct {
+	broker *Broker[T]
 	topic  string
 	name   string
 
-	utils.BaseRunner
+	utils.BaseRunner[T]
 }
 
-func (s Subscriber) Topic() *Topic {
+func (s Subscriber[T]) Topic() *Topic[T] {
 	return s.broker.GetTopic(s.topic)
 }
 
-func (s Subscriber) Name() string {
+func (s Subscriber[T]) Name() string {
 	return s.name
 }
 
-func (s Subscriber) Unsubscribe() {
+func (s Subscriber[T]) Unsubscribe() {
 	topic := s.Topic()
 	topic.Unsubscribe(s)
 }
 
-type SubscriberProcessor struct {
+type SubscriberProcessor[T any] struct {
 	strategy strategies.Strategy
 	topic    string
 	name     string
 }
 
-func (s *SubscriberProcessor) Process(data any) {
+func (s *SubscriberProcessor[T]) Process(data T) {
 	log.Printf("[%s] [%s] subscriber passing to strategy %s", s.topic, s.name, data)
 	s.strategy.Receive(data)
 }
 
-func (s *SubscriberProcessor) CleanUp(channel chan any) {
+func (s *SubscriberProcessor[T]) CleanUp(channel chan T) {
 	s.strategy.Stop()
 	log.Printf("[%s] [%s] subscriber stopped", s.topic, s.name)
 }
 
-func NewSubscriber(broker *Broker, topic string, name string, strategy strategies.Strategy) *Subscriber {
-	runner := utils.NewBaseRunner(10, &SubscriberProcessor{
+func NewSubscriber[T any](broker *Broker[T], topic string, name string, strategy strategies.Strategy) *Subscriber[T] {
+	runner := utils.NewBaseRunner[T](10, &SubscriberProcessor[T]{
 		topic:    topic,
 		name:     name,
 		strategy: strategy,
 	})
-	return &Subscriber{
+	return &Subscriber[T]{
 		topic:      topic,
 		broker:     broker,
 		name:       name,

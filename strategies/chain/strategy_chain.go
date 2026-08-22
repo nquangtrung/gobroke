@@ -6,34 +6,34 @@ import (
 	"trontria.com/gobroke/strategies"
 )
 
-type StrategyChain interface {
-	strategies.Strategy
+type StrategyChain[T any] interface {
+	strategies.Strategy[T]
 }
 
-type StrategyChainWithNode struct {
-	head ChainNode
+type StrategyChainWithNode[T any] struct {
+	head ChainNode[T]
 }
 
-func (s *StrategyChainWithNode) Receive(data any) {
-	log.Printf("chain strategy received %s", data)
+func (s *StrategyChainWithNode[T]) Receive(data T) {
+	log.Printf("chain strategy received %v", data)
 	s.head.Consume(s, data)
 }
 
-func (s *StrategyChainWithNode) Stop() {
+func (s *StrategyChainWithNode[T]) Stop() {
 	s.head.Stop(s)
 }
-func (s *StrategyChainWithNode) Drop(data any) {
+func (s *StrategyChainWithNode[T]) Drop(data T) {
 	go s.head.Drop(data)
 }
-func New(chain ChainNode) StrategyChain {
-	strategy := &StrategyChainWithNode{
+func New[T any](chain ChainNode[T]) StrategyChain[T] {
+	strategy := &StrategyChainWithNode[T]{
 		head: chain,
 	}
 
 	return strategy
 }
 
-func NewFromSlice(nodes []ChainNode) StrategyChain {
+func NewFromSlice[T any](nodes []ChainNode[T]) StrategyChain[T] {
 	head := fromSlice(nodes)
 	return New(head)
 }

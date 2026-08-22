@@ -15,19 +15,19 @@ const (
 	DropLast
 )
 
-type ConsumeNode struct {
+type ConsumeNode[T any] struct {
 	timeOut time.Duration
 	name    string
-	runner  *utils.BaseRunner
+	runner  *utils.BaseRunner[T]
 	drop    DropType
-	Nextable
+	Nextable[T]
 }
 
-func (c *ConsumeNode) Stop(strategy strategies.Strategy) {
+func (c *ConsumeNode[T]) Stop(strategy strategies.Strategy[T]) {
 	c.runner.Stop()
 	c.Nextable.Stop(strategy)
 }
-func (c *ConsumeNode) Consume(strategy strategies.Strategy, data any) {
+func (c *ConsumeNode[T]) Consume(strategy strategies.Strategy[T], data T) {
 	timeOut := time.After(c.timeOut)
 	select {
 	case c.runner.Receive() <- data:
@@ -38,7 +38,7 @@ func (c *ConsumeNode) Consume(strategy strategies.Strategy, data any) {
 		c.Next(strategy, data)
 	}
 }
-func (c *ConsumeNode) Drop(data any) {
+func (c *ConsumeNode[T]) Drop(data T) {
 	if c.drop == DropFirst {
 		dropped := <-c.runner.Receive()
 		c.runner.Receive() <- data
@@ -49,16 +49,16 @@ func (c *ConsumeNode) Drop(data any) {
 	}
 }
 
-type NewConsumeNodeParams struct {
+type NewConsumeNodeParams[T any] struct {
 	TimeOut time.Duration
-	Runner  *utils.BaseRunner
+	Runner  *utils.BaseRunner[T]
 	Drop    DropType
 	Name    string
 }
 
-func NewConsumeNode(params NewConsumeNodeParams) *ConsumeNode {
+func NewConsumeNode[T any](params NewConsumeNodeParams[T]) *ConsumeNode[T] {
 	go params.Runner.Start()
-	return &ConsumeNode{
+	return &ConsumeNode[T]{
 		runner:  params.Runner,
 		timeOut: params.TimeOut,
 		drop:    params.Drop,

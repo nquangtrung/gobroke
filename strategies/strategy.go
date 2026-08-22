@@ -1,7 +1,7 @@
 package strategies
 
-type Strategy interface {
-	Receive(data any)
+type Strategy[T any] interface {
+	Receive(data T)
 	Stop()
-	Drop(data any)
+	Drop(data T)
 }

@@ -4,20 +4,20 @@ import (
 	"trontria.com/gobroke/strategies"
 )
 
-type Nextable struct {
-	next ChainNode
+type Nextable[T any] struct {
+	next ChainNode[T]
 }
 
-func (n *Nextable) Then(node ChainNode) {
+func (n *Nextable[T]) Then(node ChainNode[T]) {
 	n.next = node
 }
-func (n *Nextable) Next(strategy strategies.Strategy, data any) {
+func (n *Nextable[T]) Next(strategy strategies.Strategy[T], data T) {
 	if n.next != nil {
 		n.next.Consume(strategy, data)
 	} else {
 	}
 }
-func (n *Nextable) Stop(strategy strategies.Strategy) {
+func (n *Nextable[T]) Stop(strategy strategies.Strategy[T]) {
 	if n.next != nil {
 		n.next.Stop(strategy)
 	}
